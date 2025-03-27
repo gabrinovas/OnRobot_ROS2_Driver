@@ -8,23 +8,28 @@ class SerialConnectionWrapper : public IModbusConnection {
 public:
     // Create a Serial connection using the provided device path.
     SerialConnectionWrapper(const std::string &device)
-      : connection(device) {
-          connection.connect();
-      }
+    : connection(device) {
+        connection.setTwoStopBits(false); // Use one stop bit
+        connection.setEvenParity();
+        connection.setBaudRate(115200);
+        connection.setTimeout(1000);
+        connection.connect();
+    }
 
     MB::ModbusResponse sendRequest(const MB::ModbusRequest &req) override {
         try {
-            // sendRequest returns raw bytes;
-            // we then parse them into a response.
-            std::vector<uint8_t> rawResp = connection.sendRequest(req);
-            return MB::ModbusResponse::fromRaw(rawResp);
+            // Send the raw request bytes.
+            connection.send(req.toRaw());
+            // Wait for the complete response.
+            auto [response, rawData] = connection.awaitResponse();
+            return response;
         } catch (const MB::ModbusException &ex) {
             throw;
         }
     }
 
     void close() override {
-        // The Serial connection destructor will close the file descriptor.
+        // Do nothing at the moment. Can explicitly close the connection if needed.
     }
 
 private:

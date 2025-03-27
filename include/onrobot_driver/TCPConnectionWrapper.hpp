@@ -11,18 +11,17 @@ public:
 
     MB::ModbusResponse sendRequest(const MB::ModbusRequest &req) override {
         try {
-            // sendRequest returns raw bytes;
-            // we then parse them into a response.
-            std::vector<uint8_t> rawResp = connection.sendRequest(req);
-            return MB::ModbusResponse::fromRaw(rawResp);
+            // Send the request.
+            connection.sendRequest(req);
+            // Wait for the complete response and return it.
+            return connection.awaitResponse();
         } catch (const MB::ModbusException &ex) {
             throw;
         }
     }
 
     void close() override {
-        // TCP connection cleanup is handled in its destructor.
-        // You could also explicitly close the socket if needed.
+        // Do nothing at the moment. Can explicitly close the connection if needed.
     }
 
 private:
