@@ -17,9 +17,8 @@
 
 class RG {
 public:
-    // For TCP connection
+    // Constructors for TCP and Serial connections.
     RG(const std::string &type, const std::string &ip, int port);
-    // For Serial connection
     RG(const std::string &type, const std::string &device);
     ~RG();
 
@@ -30,15 +29,14 @@ public:
     float getWidthWithOffset();
 
     // Write commands
-    void setControlMode(uint16_t command);
+    void setFingertipOffset(uint16_t offset_val);
     void setTargetForce(uint16_t force_val);
     void setTargetWidth(uint16_t width_val);
-    void closeGripper(uint16_t force_val = 400);
-    void openGripper(uint16_t force_val = 400);
-    void moveGripper(uint16_t width_val, uint16_t force_val = 400);
-
-    // Explicit connection close if needed
-    void closeConnection();
+    void setControlMode(uint16_t command);
+    
+    void closeGripper();
+    void openGripper();
+    void moveGripper(uint16_t width_val);
 
 private:
     std::unique_ptr<IModbusConnection> connection;
@@ -46,6 +44,28 @@ private:
     uint16_t max_width;
     uint16_t max_force;
 
-    // Helper function to send a request and return a response.
+    // Default parameters.
+    uint16_t default_force;
+    uint16_t default_fingertip_offset;
+
+    // Constants for registers and commands.
+    static constexpr uint16_t DEVICE_ID = 65;
+    static constexpr uint16_t REG_TARGET_FORCE = 0;
+    static constexpr uint16_t REG_TARGET_WIDTH = 1;
+    static constexpr uint16_t REG_CONTROL = 2;
+    static constexpr uint16_t REG_FINGERTIP_OFFSET = 258;
+    static constexpr uint16_t REG_ACTUAL_DEPTH = 263;
+    static constexpr uint16_t REG_ACTUAL_RELATIVE_DEPTH = 264;
+    static constexpr uint16_t REG_ACTUAL_WIDTH = 267;
+    static constexpr uint16_t REG_STATUS = 268;
+    static constexpr uint16_t REG_ACTUAL_WIDTH_WITH_OFFSET = 275;
+    static constexpr uint16_t REG_SET_FINGERTIP_OFFSET = 1031;
+
+    // Control commands.
+    static constexpr uint16_t CMD_GRIP = 1;
+    static constexpr uint16_t CMD_STOP = 8;
+    static constexpr uint16_t CMD_GRIP_WITH_OFFSET = 16;
+
+    // Helper function to send a MODBUS request.
     MB::ModbusResponse sendRequest(const MB::ModbusRequest &req);
 };
