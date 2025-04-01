@@ -6,7 +6,7 @@
 #include <string>
 #include <mutex>
 
-#include "hardware_interface/system_interface.hpp"
+#include "hardware_interface/actuator_interface.hpp"
 #include "hardware_interface/handle.hpp"
 #include "hardware_interface/hardware_info.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -17,7 +17,7 @@
 namespace rg_hardware_interface
 {
 
-    class RGHardwareInterface : public hardware_interface::SystemInterface
+    class RGHardwareInterface : public hardware_interface::ActuatorInterface
     {
     public:
         RGHardwareInterface();
