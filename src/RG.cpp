@@ -197,6 +197,30 @@ std::vector<int> RG::getStatus()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t reg = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        status_list[0] = (reg & (1 << 0)) ? 1 : 0;
+        status_list[1] = (reg & (1 << 1)) ? 1 : 0;
+        status_list[2] = (reg & (1 << 2)) ? 1 : 0;
+        status_list[3] = (reg & (1 << 3)) ? 1 : 0;
+        status_list[4] = (reg & (1 << 4)) ? 1 : 0;
+        status_list[5] = (reg & (1 << 5)) ? 1 : 0;
+        status_list[6] = (reg & (1 << 6)) ? 1 : 0;
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read status." << std::endl;
+        status_list.assign(7, -1);
+    }
+    return status_list;
+}
+
+std::vector<int> RG::getStatusAndPrint()
+{
+    std::vector<int> status_list(7, 0);
+    MB::ModbusRequest req(DEVICE_ID, MB::utils::ReadAnalogOutputHoldingRegisters, REG_STATUS, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t reg = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
         // Interpret individual bits.
         if (reg & (1 << 0))
         {

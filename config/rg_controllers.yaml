@@ -11,4 +11,4 @@ controller_manager:
 finger_width_controller:
   ros__parameters:
     joints:
-      - finger_width
+      - $(var prefix)finger_width

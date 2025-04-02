@@ -26,6 +26,7 @@ public:
     float getFingertipOffset();
     float getWidth();
     std::vector<int> getStatus();
+    std::vector<int> getStatusAndPrint();
     float getWidthWithOffset();
 
     // Write commands
