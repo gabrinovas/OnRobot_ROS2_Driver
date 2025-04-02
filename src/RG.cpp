@@ -11,15 +11,15 @@ RG::RG(const std::string &type, const std::string &ip, int port)
 
     if (type == "rg2")
     {
-        max_width = 1100;
-        max_force = 400;
-        default_fingertip_offset = 0; // TODO: Calibrate and set this value.
+        max_width = 0.11;
+        max_force = 40.0;
+        default_fingertip_offset = 0.0049;
     }
     else if (type == "rg6")
     {
-        max_width = 1600;
-        max_force = 1200;
-        default_fingertip_offset = 0; // TODO: Calibrate and set this value.
+        max_width = 0.16;
+        max_force = 120.0;
+        default_fingertip_offset = 0.0; // TODO: Calibrate and set this value.
     }
     default_force = max_force / 2;
 
@@ -39,15 +39,15 @@ RG::RG(const std::string &type, const std::string &device)
 
     if (type == "rg2")
     {
-        max_width = 1100;
-        max_force = 400;
-        default_fingertip_offset = 0;
+        max_width = 0.11;
+        max_force = 40.0;
+        default_fingertip_offset = 0.0049;
     }
     else if (type == "rg6")
     {
-        max_width = 1600;
-        max_force = 1200;
-        default_fingertip_offset = 0;
+        max_width = 0.16;
+        max_force = 120.0;
+        default_fingertip_offset = 0.0; // TODO: Calibrate and set this value.
     }
     default_force = max_force / 2;
 
@@ -75,7 +75,7 @@ MB::ModbusResponse RG::sendRequest(const MB::ModbusRequest &req)
     }
 }
 
-void RG::moveGripper(uint16_t width_val)
+void RG::moveGripper(float width_val)
 {
     // First stop any ongoing motion.
     setControlMode(CMD_STOP);
@@ -114,9 +114,9 @@ void RG::setControlMode(uint16_t command)
     }
 }
 
-void RG::setTargetForce(uint16_t force_val)
+void RG::setTargetForce(float force_val)
 {
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell(force_val)};
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(force_val*10.0f))};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_FORCE, 1, values);
     try
     {
@@ -128,9 +128,9 @@ void RG::setTargetForce(uint16_t force_val)
     }
 }
 
-void RG::setTargetWidth(uint16_t width_val)
+void RG::setTargetWidth(float width_val)
 {
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell(width_val)};
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(width_val*10000.0f))};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_WIDTH, 1, values);
     try
     {
@@ -142,9 +142,9 @@ void RG::setTargetWidth(uint16_t width_val)
     }
 }
 
-void RG::setFingertipOffset(uint16_t offset_val)
+void RG::setFingertipOffset(float offset_val)
 {
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell(offset_val)};
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(offset_val*10000.0f))};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteMultipleAnalogOutputHoldingRegisters, REG_SET_FINGERTIP_OFFSET, 1, values);
     try
     {
@@ -164,7 +164,7 @@ float RG::getFingertipOffset()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        return regValue / 10.0f;
+        return (float)regValue / 10000.0f;
     }
     catch (const MB::ModbusException &)
     {
@@ -180,7 +180,7 @@ float RG::getWidth()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        return regValue / 10.0f;
+        return (float)regValue / 10000.0f;
     }
     catch (const MB::ModbusException &)
     {
@@ -249,7 +249,7 @@ float RG::getWidthWithOffset()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        return regValue / 10.0f;
+        return (float)regValue / 10000.0f;
     }
     catch (const MB::ModbusException &)
     {

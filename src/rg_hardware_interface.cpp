@@ -160,8 +160,7 @@ namespace rg_hardware_interface
         }
         try
         {
-            double width = gripper_->getWidth();
-            finger_width_state_ = width / 10000.0; // conversion: (1/10 mm) -> (m)
+            finger_width_state_ = gripper_->getWidthWithOffset();
         }
         catch (const std::exception &e)
         {
@@ -182,10 +181,7 @@ namespace rg_hardware_interface
         }
         try
         {
-            // Convert the command from m to the raw unit expected by the gripper.
-            // Conversion: command (m) -> (1/10 mm)
-            uint16_t width_raw = static_cast<uint16_t>(finger_width_command_ * 10000);
-            gripper_->moveGripper(width_raw);
+            gripper_->moveGripper(finger_width_command_);
         }
         catch (const std::exception &e)
         {
