@@ -78,6 +78,17 @@ namespace rg_hardware_interface
             return hardware_interface::CallbackReturn::ERROR;
         }
 
+        // Retrieve the prefix from the hardware parameters.
+        if (info.hardware_parameters.find("prefix") != info.hardware_parameters.end())
+        {
+            prefix_ = info.hardware_parameters.at("prefix");
+        }
+        else
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Missing prefix parameter");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
         // Initialise joint variables
         finger_width_state_ = 0.0;
         finger_width_command_ = 0.0;
@@ -97,6 +108,11 @@ namespace rg_hardware_interface
             {
                 gripper_ = std::make_unique<RG>(onrobot_type_, device_);
             }
+
+            // Get the starting width of the gripper.
+            finger_width_state_ = gripper_->getWidthWithOffset();
+            // Set the command to the current state to avoid moving to 0.0 at start.
+            finger_width_command_ = finger_width_state_;
         }
         catch (const std::exception &e)
         {
@@ -138,14 +154,14 @@ namespace rg_hardware_interface
     std::vector<hardware_interface::StateInterface> RGHardwareInterface::export_state_interfaces()
     {
         std::vector<hardware_interface::StateInterface> state_interfaces;
-        state_interfaces.emplace_back(hardware_interface::StateInterface("finger_width", "position", &finger_width_state_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "position", &finger_width_state_));
         return state_interfaces;
     }
 
     std::vector<hardware_interface::CommandInterface> RGHardwareInterface::export_command_interfaces()
     {
         std::vector<hardware_interface::CommandInterface> command_interfaces;
-        command_interfaces.emplace_back(hardware_interface::CommandInterface("finger_width", "position", &finger_width_command_));
+        command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "position", &finger_width_command_));
         return command_interfaces;
     }
 
@@ -155,7 +171,7 @@ namespace rg_hardware_interface
         std::lock_guard<std::mutex> lock(hw_interface_mutex_);
         if (!gripper_)
         {
-            RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Gripper not initialized");
+            RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Gripper not initialised");
             return hardware_interface::return_type::ERROR;
         }
         try
@@ -176,7 +192,7 @@ namespace rg_hardware_interface
         std::lock_guard<std::mutex> lock(hw_interface_mutex_);
         if (!gripper_)
         {
-            RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Gripper not initialized");
+            RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Gripper not initialised");
             return hardware_interface::return_type::ERROR;
         }
         try

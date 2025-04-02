@@ -43,6 +43,7 @@ namespace rg_hardware_interface
     private:
         // The gripper instance.
         std::unique_ptr<RG> gripper_;
+        std::string prefix_;
 
         // Internal joint variable (position) in SI units (metres).
         double finger_width_state_;   // measured state (m)
