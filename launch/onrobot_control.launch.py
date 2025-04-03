@@ -5,6 +5,7 @@ from launch_ros.substitutions import FindPackageShare
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -13,44 +14,6 @@ from launch.substitutions import (
 )
 
 def generate_launch_description():
-    # Declare launch arguments
-    onrobot_type_arg = DeclareLaunchArgument(
-        'onrobot_type',
-        description='Type of OnRobot gripper.',
-        choices=['rg2', 'rg6'],
-    )
-    connection_type_arg = DeclareLaunchArgument(
-        'connection_type',
-        default_value='serial',
-        description='Connection type for the OnRobot gripper. TCP for the Control Box. Serial for the UR Tool I/O (RS485).',
-        choices=['serial', 'tcp'],
-    )
-    device_arg = DeclareLaunchArgument(
-        'device',
-        default_value='/tmp/ttyUR',
-        description='Device name for the serial connection. Only used when connection_type is serial.',
-    )
-    ip_address_arg = DeclareLaunchArgument(
-        'ip_address',
-        default_value='192.168.1.1',
-        description='IP address for the TCP connection. Only used when connection_type is tcp.',
-    )
-    port_arg = DeclareLaunchArgument(
-        'port',
-        default_value='502',
-        description='Port for the TCP connection. Only used when connection_type is tcp.',
-    )
-    description_package_arg = DeclareLaunchArgument(
-        'description_package',
-        default_value='onrobot_description',
-        description='Package with the OnRobot URDF/XACRO files.',
-    )
-    prefix_arg = DeclareLaunchArgument(
-        'prefix',
-        default_value='',
-        description='Prefix for joint names (useful for multi-robot setups).',
-    )
-
     # Launch configuration variables
     onrobot_type = LaunchConfiguration('onrobot_type')
     connection_type = LaunchConfiguration('connection_type')
@@ -59,6 +22,74 @@ def generate_launch_description():
     port = LaunchConfiguration('port')
     description_package = LaunchConfiguration('description_package')
     prefix = LaunchConfiguration('prefix')
+    ns = LaunchConfiguration('ns')
+    launch_rviz = LaunchConfiguration('launch_rviz')
+
+    # Declare launch arguments
+    declared_arguments = []
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'onrobot_type',
+            description='Type of OnRobot gripper.',
+            choices=['rg2', 'rg6'],
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'connection_type',
+            description='Connection type for the OnRobot gripper. TCP for the Control Box. Serial for the UR Tool I/O (RS485).',
+            choices=['serial', 'tcp'],
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'device',
+            default_value='/tmp/ttyUR',
+            description='Device name for the serial connection. Only used when connection_type is serial.',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'ip_address',
+            default_value='192.168.1.1',
+            description='IP address for the TCP connection. Only used when connection_type is tcp.',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'port',
+            default_value='502',
+            description='Port for the TCP connection. Only used when connection_type is tcp.',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'description_package',
+            default_value='onrobot_description',
+            description='Package with the OnRobot URDF/XACRO files.',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'prefix',
+            default_value='',
+            description='Prefix for joint names (useful for multi-robot setups).',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'ns',
+            default_value='onrobot',
+            description='Namespace for the nodes. Useful for separate gripper and robot control setups.',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'launch_rviz',
+            default_value='true',
+            description='Launch RViz for visualization.',
+        )
+    )
 
     # Path to the xacro file in the onrobot_description package
     xacro_file = PathJoinSubstitution([
@@ -99,6 +130,7 @@ def generate_launch_description():
 
     # Launch the ros2_control node
     ros2_control_node = Node(
+        namespace=ns,
         package='controller_manager',
         executable='ros2_control_node',
         parameters=[robot_description, controller_config],
@@ -107,6 +139,7 @@ def generate_launch_description():
 
     # Launch the robot state publisher
     robot_state_publisher_node = Node(
+        namespace=ns,
         package='robot_state_publisher',
         executable='robot_state_publisher',
         parameters=[robot_description],
@@ -115,12 +148,14 @@ def generate_launch_description():
 
     # Spawn the joint state and finger width controllers
     joint_state_spawner = Node(
+        namespace=ns,
         package='controller_manager',
         executable='spawner',
         arguments=['joint_state_broadcaster'],
         output='screen'
     )
     finger_width_spawner = Node(
+        namespace=ns,
         package='controller_manager',
         executable='spawner',
         arguments=['finger_width_controller'],
@@ -134,7 +169,9 @@ def generate_launch_description():
         'view_onrobot.rviz'
     ])
     rviz_node = Node(
+        namespace=ns,
         package='rviz2',
+        condition=IfCondition(launch_rviz),
         executable='rviz2',
         name='rviz2',
         output='screen',
@@ -142,13 +179,10 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        onrobot_type_arg,
-        connection_type_arg,
-        device_arg,
-        ip_address_arg,
-        port_arg,
-        description_package_arg,
-        prefix_arg,
+        # Declare launch arguments
+        *declared_arguments,
+
+        # Launch nodes
         ros2_control_node,
         robot_state_publisher_node,
         joint_state_spawner,
