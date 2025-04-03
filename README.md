@@ -22,7 +22,7 @@ When mounted on an Universal Robot e-Series, the gripper can be controlled throu
 
 1. Navigate to your ROS2 workspace and **clone the repository** into the `src` directory:
    ```sh
-   git clone https://github.com/tonydle/OnRobot_ROS2_Driver.git src/onrobot_driver
+   git clone --recurse-submodules https://github.com/tonydle/OnRobot_ROS2_Driver.git src/onrobot_driver
    ```
 2. Install git dependencies using `vcs`:
    ```sh
