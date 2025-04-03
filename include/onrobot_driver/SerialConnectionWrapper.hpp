@@ -9,11 +9,11 @@ public:
     // Create a Serial connection using the provided device path.
     SerialConnectionWrapper(const std::string &device)
     : connection(device) {
+        connection.connect();
         connection.setTwoStopBits(false); // Use one stop bit
         connection.setEvenParity();
         connection.setBaudRate(115200);
         connection.setTimeout(1000);
-        connection.connect();
     }
 
     MB::ModbusResponse sendRequest(const MB::ModbusRequest &req) override {

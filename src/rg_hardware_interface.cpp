@@ -127,6 +127,7 @@ namespace rg_hardware_interface
         if (gripper_)
         {
             gripper_.reset();
+            gripper_.release();
         }
         return hardware_interface::CallbackReturn::SUCCESS;
     }
