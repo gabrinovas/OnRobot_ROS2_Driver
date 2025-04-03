@@ -24,6 +24,7 @@ def generate_launch_description():
     prefix = LaunchConfiguration('prefix')
     ns = LaunchConfiguration('ns')
     launch_rviz = LaunchConfiguration('launch_rviz')
+    use_fake_hardware = LaunchConfiguration('use_fake_hardware')
 
     # Declare launch arguments
     declared_arguments = []
@@ -90,6 +91,13 @@ def generate_launch_description():
             description='Launch RViz for visualization.',
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'use_fake_hardware',
+            default_value='false',
+            description='Use fake hardware interface for testing.',
+        )
+    )
 
     # Path to the xacro file in the onrobot_description package
     xacro_file = PathJoinSubstitution([
@@ -115,6 +123,8 @@ def generate_launch_description():
         'port:=', port,
         ' ',
         'prefix:=', prefix,
+        ' ',
+        'use_fake_hardware:=', use_fake_hardware,
         ' ',
         'name:=onrobot'
     ])
