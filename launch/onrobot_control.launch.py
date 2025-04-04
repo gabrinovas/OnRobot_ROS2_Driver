@@ -20,10 +20,10 @@ def generate_launch_description():
     device = LaunchConfiguration('device')
     ip_address = LaunchConfiguration('ip_address')
     port = LaunchConfiguration('port')
-    description_package = LaunchConfiguration('description_package')
     prefix = LaunchConfiguration('prefix')
     ns = LaunchConfiguration('ns')
     launch_rviz = LaunchConfiguration('launch_rviz')
+    launch_rsp = LaunchConfiguration('launch_rsp')
     use_fake_hardware = LaunchConfiguration('use_fake_hardware')
 
     # Declare launch arguments
@@ -65,13 +65,6 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
-            'description_package',
-            default_value='onrobot_description',
-            description='Package with the OnRobot URDF/XACRO files.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
             'prefix',
             default_value='',
             description='Prefix for joint names (useful for multi-robot setups).',
@@ -93,6 +86,13 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
+            'launch_rsp',
+            default_value='true',
+            description='Launch robot state publisher.',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
             'use_fake_hardware',
             default_value='false',
             description='Use fake hardware interface for testing.',
@@ -101,7 +101,7 @@ def generate_launch_description():
 
     # Path to the xacro file in the onrobot_description package
     xacro_file = PathJoinSubstitution([
-        FindPackageShare(description_package),
+        FindPackageShare('onrobot_description'),
         'urdf',
         'onrobot.urdf.xacro'
     ])
@@ -151,6 +151,7 @@ def generate_launch_description():
     robot_state_publisher_node = Node(
         namespace=ns,
         package='robot_state_publisher',
+        condition=IfCondition(launch_rsp),
         executable='robot_state_publisher',
         parameters=[robot_description],
         output='both'
@@ -174,7 +175,7 @@ def generate_launch_description():
 
     # Launch RViz for visualization using the config from onrobot_description
     rviz_config_file = PathJoinSubstitution([
-        FindPackageShare(description_package),
+        FindPackageShare('onrobot_description'),
         'rviz',
         'view_onrobot.rviz'
     ])
