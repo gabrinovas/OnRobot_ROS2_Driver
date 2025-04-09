@@ -65,9 +65,9 @@ When mounted on an Universal Robot e-Series, the gripper can be controlled throu
       - Standard Output:
          - Digital Output 0: Sinking (NPN)
          - Digital Output 1: Sinking (NPN)
-4. When launching ur_robot_driver, enable `use_tool_communication`. An example launch command is given below:
+4. When launching ur_robot_driver, enable `use_tool_communication` and set the correct tool settings. An example launch command is given below:
    ```sh
-   ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur3e robot_ip:=192.168.0.194 use_tool_communication:=true
+   ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur3e robot_ip:=192.168.0.194 use_tool_communication:=true tool_parity:=2 tool_baud_rate:=1000000 tool_voltage:=24
    ```
 
 ### Option 2: Using the OnRobot Compute Box (Modbus TCP)
@@ -78,8 +78,16 @@ When mounted on an Universal Robot e-Series, the gripper can be controlled throu
 ### Launch the driver
 Launch the driver with `onrobot_type` [`rg2`,`rg6`] and `connection_type` [`serial` (UR Tool I/O) or `tcp` (Control Box)] arguments.
    ```sh
-   ros2 launch onrobot_driver onrobot_control.launch.py onrobot_type:=rg2 connection_type:=serial launch_rviz:=true
+   ros2 launch onrobot_driver onrobot_control.launch.py onrobot_type:=rg2 connection_type:=serial
    ```
+Other arguments:
+- `use_fake_hardware` (default: `false`): Use mock hardware interface for testing
+- `launch_rviz` (default: `true`): Launch RViz with the gripper model
+- `launch_rsp` (default: `true`): Launch the Robot State Publisher node (publishes to `/tf`)
+- `device` (default: `/tmp/ttyUR`): Virtual Serial device path (if using Modbus Serial)
+- `ip_address` (default: `192.168.1.1`): IP address of the Compute Box (if using Modbus TCP)
+- `port` (default: `502`): Port of the Compute Box (if using Modbus TCP)
+
 ### Get the `finger_width` joint state (metres)
    ```sh
    ros2 topic echo /onrobot/joint_states
@@ -88,6 +96,19 @@ Launch the driver with `onrobot_type` [`rg2`,`rg6`] and `connection_type` [`seri
    ```sh
    ros2 topic pub --once /onrobot/finger_width_controller/commands std_msgs/msg/Float64MultiArray "{data: [0.05]}"
    ```
+
+## TO DOs
+### Setting target force
+At the moment the target force is set to be half of the maximum force. This can be changed in the `RG` class, but it would be better to set it as a parameter, or a service call.
+
+### Combining URDFs to create a unified `robot_description`
+With a Universal Robot, we can follow the [my_robot_cell tutorial](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_tutorials/my_robot_cell/doc/index.html) to assemble your URDF, create a custom driver launch file, and build its MoveIt! configuration package.
+
+### Implementing other controllers
+A [Gripper Action Controller](https://control.ros.org/humble/doc/ros2_controllers/gripper_controllers/doc/userdoc.html) can be implemented to control the gripper with a `gripper_action_interface` and `GripperCommand` action. This will allow for more advanced control of the gripper, such as opening and closing with a specified force and monitoring the action state.
+
+### Adding support for other grippers
+The driver can be extended to support other OnRobot grippers, such as the [RG2-FT](https://onrobot.com/en/products/rg2-ft-gripper) and [3FG15](https://onrobot.com/en/products/3fg15-three-finger-gripper) grippers.
 
 ## Author
 [Tony Le](https://github.com/tonydle)
