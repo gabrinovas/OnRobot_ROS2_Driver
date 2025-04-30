@@ -4,6 +4,7 @@
 #include <string>
 #include <stdexcept>
 #include <iostream>
+#include <thread>
 
 #include "onrobot_driver/IModbusConnection.hpp"
 #include "onrobot_driver/TCPConnectionWrapper.hpp"

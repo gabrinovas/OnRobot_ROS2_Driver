@@ -7,7 +7,18 @@ RG::RG(const std::string &type, const std::string &ip, int port)
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
     if (type != "rg2" && type != "rg6")
         throw std::invalid_argument("Please specify either 'rg2' or 'rg6'.");
-    connection = std::make_unique<TCPConnectionWrapper>(ip, port);
+
+    // Attempt to establish TCP connection, retrying until successful
+    while (true) {
+        try {
+            connection = std::make_unique<TCPConnectionWrapper>(ip, port);
+            break;
+        } catch (const std::exception &ex) {
+            std::cerr << "Failed to establish TCP connection: " << ex.what()
+                      << ". Retrying in 1 second..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    }
 
     if (type == "rg2")
     {
@@ -35,7 +46,18 @@ RG::RG(const std::string &type, const std::string &device)
         throw std::invalid_argument("Please provide a serial device for connection.");
     if (type != "rg2" && type != "rg6")
         throw std::invalid_argument("Please specify either 'rg2' or 'rg6'.");
-    connection = std::make_unique<SerialConnectionWrapper>(device);
+
+    // Attempt to establish Serial connection, retrying until successful
+    while (true) {
+        try {
+            connection = std::make_unique<SerialConnectionWrapper>(device);
+            break;
+        } catch (const std::exception &ex) {
+            std::cerr << "Failed to establish Serial connection: " << ex.what()
+                      << ". Retrying in 1 second..." << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    }
 
     if (type == "rg2")
     {
