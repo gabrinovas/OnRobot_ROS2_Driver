@@ -2,15 +2,16 @@
 
 <img src=doc/images/ur_onrobot.gif width=30%>
 
-ROS2 driver for OnRobot Grippers.
-When mounted on an Universal Robot e-Series, the gripper can be controlled through Tool I/O via RS-485.
+ROS 2 driver for OnRobot Grippers.
+
+Note: If you are using it with a Universal Robot eSeries, check out the [UR_OnRobot_ROS2](https://github.com/tonydle/UR_OnRobot_ROS2) package instead.
 
 ## Features
-- ROS2 driver for OnRobot grippers controlled via Modbus TCP or Serial
+- ROS 2 driver for OnRobot grippers controlled via Modbus TCP or Serial
 - Currently supported grippers:
     - [RG2](https://onrobot.com/en/products/rg2-gripper)
     - [RG6](https://onrobot.com/en/products/rg6-gripper) 
-- ROS2 Control hardware interface plugin
+- ROS 2 Control hardware interface plugin
 
 ## Dependencies (included in the installation steps below)
 
@@ -20,7 +21,7 @@ When mounted on an Universal Robot e-Series, the gripper can be controlled throu
 
 ## Installation
 
-1. Navigate to your ROS2 workspace and **clone the repository** into the `src` directory:
+1. Navigate to your ROS 2 workspace and **clone the repository** into the `src` directory:
    ```sh
    git clone --recurse-submodules https://github.com/tonydle/OnRobot_ROS2_Driver.git src/onrobot_driver
    ```
@@ -40,39 +41,6 @@ When mounted on an Universal Robot e-Series, the gripper can be controlled throu
    ```sh
    source install/setup.bash
    ```
-
-## Hardware Setup
-### Option 1: Using the Tool I/O of a Universal Robot e-Series robot (Modbus Serial)
-1. Use a short cable to connect the OnRobot Quick Changer to the Tool I/O of the UR robot.
-2. On the UR Teach Pendant, install the [RS485 Daemon URCap](https://github.com/UniversalRobots/Universal_Robots_ToolComm_Forwarder_URCap) following the steps below:
-   - Download the URCap from [Releases](https://github.com/UniversalRobots/Universal_Robots_ToolComm_Forwarder_URCap/releases)
-   - Follow the [URCap Installation Guide](https://github.com/UniversalRobots/Universal_Robots_ToolComm_Forwarder_URCap/blob/master/doc/install_urcap.md)
-   - Note: Currently there is a bug where if you have the robotiq_grippers URCap installed, the RS485 URCap cannot run.
-    Follow the issue [here](https://github.com/UniversalRobots/Universal_Robots_ToolComm_Forwarder_URCap/issues/9) for updates.
-   - Restart robot
-3. Setup Tool I/O parameters (Installation -> General -> Tool I/O)
-
-   <img src=doc/images/installation_tool_io.png width=60%>
-
-      - Controlled by: User
-      - Communication Interface:
-         - Baud Rate: 1M
-         - Parity: Even
-         - Stop Bits: One
-         - RX Idle Chars: 1.5
-         - TX Idle Chars: 3.5
-      - Tool Output Voltage: 24V
-      - Standard Output:
-         - Digital Output 0: Sinking (NPN)
-         - Digital Output 1: Sinking (NPN)
-4. When launching ur_robot_driver, enable `use_tool_communication` and set the correct tool settings. An example launch command is given below:
-   ```sh
-   ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur3e robot_ip:=192.168.0.194 use_tool_communication:=true tool_parity:=2 tool_baud_rate:=1000000 tool_voltage:=24
-   ```
-
-### Option 2: Using the OnRobot Compute Box (Modbus TCP)
-1. Connect the cable between Compute Box and Tool Changer
-2. Connect an Ethernet cable between Compute Box and your computer
 
 ## Usage
 ### Launch the driver
@@ -100,9 +68,6 @@ Other arguments:
 ## TO DOs
 ### Setting target force
 At the moment the target force is set to be half of the maximum force. This can be changed in the `RG` class, but it would be better to set it as a parameter, or a service call.
-
-### Combining URDFs to create a unified `robot_description`
-With a Universal Robot, we can follow the [my_robot_cell tutorial](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_tutorials/my_robot_cell/doc/index.html) to assemble your URDF, create a custom driver launch file, and build its MoveIt! configuration package.
 
 ### Implementing other controllers
 A [Gripper Action Controller](https://control.ros.org/humble/doc/ros2_controllers/gripper_controllers/doc/userdoc.html) can be implemented to control the gripper with a `gripper_action_interface` and `GripperCommand` action. This will allow for more advanced control of the gripper, such as opening and closing with a specified force and monitoring the action state.
