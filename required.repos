@@ -3,3 +3,7 @@ repositories:
     type: git
     url: https://github.com/gabrinovas/OnRobot_ROS2_Description.git
     version: main
+  Modbus:
+    type: git
+    url: https://github.com/gabrinovas/modbus.git
+    version: main
