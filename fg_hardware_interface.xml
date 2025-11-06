@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<library path="onrobot_fg_driver_plugin">
+  <class name="onrobot_driver/FGHardwareInterface"
+         type="fg_hardware_interface::FGHardwareInterface"
+         base_class_type="hardware_interface::ActuatorInterface">
+    <description>
+        ROS 2 Control hardware interface for the OnRobot 2FG gripper series.
+    </description>
+  </class>
+</library>

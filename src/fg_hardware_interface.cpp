@@ -1,0 +1,258 @@
+#include "onrobot_driver/fg_hardware_interface.hpp"
+#include "pluginlib/class_list_macros.hpp"
+#include "rclcpp/rclcpp.hpp"
+
+namespace fg_hardware_interface
+{
+
+    FGHardwareInterface::FGHardwareInterface()
+        : finger_width_state_(0.0),
+          finger_width_command_(0.0),
+          device_address_(65)
+    {
+    }
+
+    FGHardwareInterface::~FGHardwareInterface()
+    {
+    }
+
+    hardware_interface::CallbackReturn FGHardwareInterface::on_init(const hardware_interface::HardwareInfo &info)
+    {
+        // Retrieve the gripper type from the hardware parameters
+        if (info.hardware_parameters.find("onrobot_type") != info.hardware_parameters.end())
+        {
+            onrobot_type_ = info.hardware_parameters.at("onrobot_type");
+        }
+        else
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Missing onrobot_type parameter");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        
+        // Check for valid gripper type for 2FG series
+        if (onrobot_type_ != "2fg7" && onrobot_type_ != "2fg14")
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Invalid onrobot_type for 2FG series: %s", onrobot_type_.c_str());
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        // Retrieve the connection type from the hardware parameters
+        if (info.hardware_parameters.find("connection_type") != info.hardware_parameters.end())
+        {
+            connection_type_ = info.hardware_parameters.at("connection_type");
+        }
+        else
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Missing connection_type parameter");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        
+        // Check for TCP connection parameters
+        if (connection_type_ == "tcp")
+        {
+            if (info.hardware_parameters.find("ip_address") != info.hardware_parameters.end() &&
+                info.hardware_parameters.find("port") != info.hardware_parameters.end())
+            {
+                ip_address_ = info.hardware_parameters.at("ip_address");
+                port_ = std::stoi(info.hardware_parameters.at("port"));
+            }
+            else
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Missing ip_address or port for TCP connection");
+                return hardware_interface::CallbackReturn::ERROR;
+            }
+        }
+        // Check for Serial connection parameters
+        else if (connection_type_ == "serial")
+        {
+            if (info.hardware_parameters.find("device") != info.hardware_parameters.end())
+            {
+                device_ = info.hardware_parameters.at("device");
+            }
+            else
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Missing device parameter for Serial connection");
+                return hardware_interface::CallbackReturn::ERROR;
+            }
+        }
+        else
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Unsupported connection_type: %s", connection_type_.c_str());
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        // Retrieve device address
+        if (info.hardware_parameters.find("device_address") != info.hardware_parameters.end())
+        {
+            device_address_ = std::stoi(info.hardware_parameters.at("device_address"));
+        }
+
+        // Retrieve the prefix from the hardware parameters
+        if (info.hardware_parameters.find("prefix") != info.hardware_parameters.end())
+        {
+            prefix_ = info.hardware_parameters.at("prefix");
+        }
+        else
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Missing prefix parameter");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        // Validate the hardware info
+        if (info.joints.size() != 1) {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Expected exactly 1 joint, got %zu", info.joints.size());
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        if (info.joints[0].name != "finger_width") {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Expected joint name 'finger_width', got '%s'", info.joints[0].name.c_str());
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        // Initialize joint variables
+        finger_width_state_ = 0.0;
+        finger_width_command_ = 0.0;
+        
+        RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface initialized for %s", onrobot_type_.c_str());
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn FGHardwareInterface::on_configure(const rclcpp_lifecycle::State &)
+    {
+        // Create the FG instance
+        try
+        {
+            if (connection_type_ == "tcp")
+            {
+                RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "Creating TCP connection to %s:%d", ip_address_.c_str(), port_);
+                gripper_ = std::make_unique<FG>(onrobot_type_, ip_address_, port_, device_address_);
+            }
+            else if (connection_type_ == "serial")
+            {
+                RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "Creating Serial connection to %s", device_.c_str());
+                gripper_ = std::make_unique<FG>(onrobot_type_, device_, device_address_);
+            }
+
+            // Get the starting width of the gripper
+            finger_width_state_ = gripper_->getWidth();
+            // Set the command to the current state to avoid moving to 0.0 at start
+            finger_width_command_ = finger_width_state_;
+            
+            RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG gripper configured. Initial width: %.3f m", finger_width_state_);
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Failed to create FG instance: %s", e.what());
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn FGHardwareInterface::on_cleanup(const rclcpp_lifecycle::State &)
+    {
+        if (gripper_)
+        {
+            gripper_.reset();
+        }
+        RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface cleaned up");
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn FGHardwareInterface::on_activate(const rclcpp_lifecycle::State &)
+    {
+        RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface activated");
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn FGHardwareInterface::on_deactivate(const rclcpp_lifecycle::State &)
+    {
+        RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface deactivated");
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn FGHardwareInterface::on_shutdown(const rclcpp_lifecycle::State &)
+    {
+        if (gripper_)
+        {
+            gripper_.reset();
+        }
+        RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface shutdown");
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn FGHardwareInterface::on_error(const rclcpp_lifecycle::State &)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface error occurred");
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    std::vector<hardware_interface::StateInterface> FGHardwareInterface::export_state_interfaces()
+    {
+        std::vector<hardware_interface::StateInterface> state_interfaces;
+        state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "position", &finger_width_state_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_state_)); // Dummy velocity
+        return state_interfaces;
+    }
+
+    std::vector<hardware_interface::CommandInterface> FGHardwareInterface::export_command_interfaces()
+    {
+        std::vector<hardware_interface::CommandInterface> command_interfaces;
+        command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "position", &finger_width_command_));
+        return command_interfaces;
+    }
+
+    hardware_interface::return_type FGHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration &)
+    {
+        std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+        if (!gripper_)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Gripper not initialized");
+            return hardware_interface::return_type::ERROR;
+        }
+        try
+        {
+            float new_width = gripper_->getWidth();
+            if (new_width >= 0.0) {
+                finger_width_state_ = new_width;
+            } else {
+                RCLCPP_WARN(rclcpp::get_logger("FGHardwareInterface"), "Failed to read gripper width");
+            }
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Failed to read gripper state: %s", e.what());
+            return hardware_interface::return_type::ERROR;
+        }
+        return hardware_interface::return_type::OK;
+    }
+
+    hardware_interface::return_type FGHardwareInterface::write(const rclcpp::Time &, const rclcpp::Duration &)
+    {
+        std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+        if (!gripper_)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Gripper not initialized");
+            return hardware_interface::return_type::ERROR;
+        }
+        
+        // Only send command if it has changed significantly
+        if (std::abs(finger_width_command_ - finger_width_state_) > 0.001)
+        {
+            try
+            {
+                gripper_->moveGripper(finger_width_command_);
+                RCLCPP_DEBUG(rclcpp::get_logger("FGHardwareInterface"), "Commanded gripper to width: %.3f m", finger_width_command_);
+            }
+            catch (const std::exception &e)
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Failed to write command to gripper: %s", e.what());
+                return hardware_interface::return_type::ERROR;
+            }
+        }
+        return hardware_interface::return_type::OK;
+    }
+
+} // namespace fg_hardware_interface
+
+// Export the hardware interface as a plugin for ros2_control
+PLUGINLIB_EXPORT_CLASS(fg_hardware_interface::FGHardwareInterface, hardware_interface::ActuatorInterface)

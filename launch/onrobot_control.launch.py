@@ -20,6 +20,7 @@ def generate_launch_description():
     device = LaunchConfiguration('device')
     ip_address = LaunchConfiguration('ip_address')
     port = LaunchConfiguration('port')
+    device_address = LaunchConfiguration('device_address')
     prefix = LaunchConfiguration('prefix')
     ns = LaunchConfiguration('ns')
     launch_rviz = LaunchConfiguration('launch_rviz')
@@ -32,7 +33,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'onrobot_type',
             description='Type of OnRobot gripper.',
-            choices=['rg2', 'rg6'],
+            choices=['rg2', 'rg6', '2fg7', '2fg14'],
+            default_value='rg2',
         )
     )
     declared_arguments.append(
@@ -40,6 +42,7 @@ def generate_launch_description():
             'connection_type',
             description='Connection type for the OnRobot gripper. TCP for the Control Box. Serial for the UR Tool I/O (RS485).',
             choices=['serial', 'tcp'],
+            default_value='tcp',
         )
     )
     declared_arguments.append(
@@ -61,6 +64,13 @@ def generate_launch_description():
             'port',
             default_value='502',
             description='Port for the TCP connection. Only used when connection_type is tcp.',
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'device_address',
+            default_value='65',
+            description='Modbus device address for the gripper. Default is 65 for single gripper setups.',
         )
     )
     declared_arguments.append(
@@ -122,6 +132,8 @@ def generate_launch_description():
         ' ',
         'port:=', port,
         ' ',
+        'device_address:=', device_address,
+        ' ',
         'prefix:=', prefix,
         ' ',
         'use_fake_hardware:=', use_fake_hardware,
@@ -130,20 +142,45 @@ def generate_launch_description():
     ])
     robot_description = {'robot_description': robot_description_content}
 
-    # Path to the controller configuration file (using ParameterFile to load YAML)
-    controller_config_file = PathJoinSubstitution([
-        FindPackageShare('onrobot_driver'),
-        'config',
-        'rg_controllers.yaml'
-    ])
+    # Determine which controller config to use based on gripper type
+    def get_controller_config():
+        onrobot_type_val = onrobot_type
+        if onrobot_type_val.perform(None).startswith('2fg'):
+            return PathJoinSubstitution([
+                FindPackageShare('onrobot_driver'),
+                'config',
+                'fg_controllers.yaml'
+            ])
+        else:  # rg2, rg6
+            return PathJoinSubstitution([
+                FindPackageShare('onrobot_driver'),
+                'config',
+                'rg_controllers.yaml'
+            ])
+
+    # Path to the appropriate controller configuration file
+    controller_config_file = get_controller_config()
     controller_config = ParameterFile(controller_config_file, allow_substs=True)
+
+    # Determine which hardware interface to use based on gripper type
+    def get_hardware_interface():
+        onrobot_type_val = onrobot_type
+        if onrobot_type_val.perform(None).startswith('2fg'):
+            return 'onrobot_driver/FGHardwareInterface'
+        else:  # rg2, rg6
+            return 'onrobot_driver/RGHardwareInterface'
+
+    # Add hardware interface parameter to robot description
+    hardware_interface_plugin = get_hardware_interface()
+    robot_description_with_hw = robot_description.copy()
+    robot_description_with_hw['hardware_interface_plugin'] = hardware_interface_plugin
 
     # Launch the ros2_control node
     ros2_control_node = Node(
         namespace=ns,
         package='controller_manager',
         executable='ros2_control_node',
-        parameters=[robot_description, controller_config],
+        parameters=[robot_description_with_hw, controller_config],
         output='screen'
     )
 
@@ -189,7 +226,19 @@ def generate_launch_description():
         arguments=['-d', rviz_config_file],
     )
 
-    return LaunchDescription([
+    # Optional: Add a node to monitor gripper status (for both RG and 2FG series)
+    gripper_status_node = Node(
+        namespace=ns,
+        package='onrobot_driver',
+        executable='gripper_status_monitor',
+        name='gripper_status_monitor',
+        output='screen',
+        parameters=[{
+            'onrobot_type': onrobot_type,
+        }]
+    )
+
+    nodes_to_start = [
         # Declare launch arguments
         *declared_arguments,
 
@@ -199,7 +248,10 @@ def generate_launch_description():
         joint_state_spawner,
         finger_width_spawner,
         rviz_node,
-    ])
+        gripper_status_node,
+    ]
+
+    return LaunchDescription(nodes_to_start)
 
 if __name__ == '__main__':
     generate_launch_description()

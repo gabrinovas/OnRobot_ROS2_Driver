@@ -42,8 +42,8 @@ set(MODBUS_SERIAL_COMMUNICATION ON CACHE BOOL "Enable Modbus Serial Communicatio
 # Add the Modbus library as a subdirectory.
 add_subdirectory(include/onrobot_driver/Modbus)
 
-# Build the hardware interface as a shared library.
-add_library(onrobot_driver_plugin
+# Build the RG hardware interface as a shared library.
+add_library(onrobot_rg_driver_plugin
   SHARED
   src/rg_hardware_interface.cpp
   src/RG.cpp
@@ -51,26 +51,70 @@ add_library(onrobot_driver_plugin
   include/onrobot_driver/SerialConnectionWrapper.hpp
   include/onrobot_driver/IModbusConnection.hpp
 )
-target_link_libraries(onrobot_driver_plugin
+target_link_libraries(onrobot_rg_driver_plugin
   Modbus
 )
-target_include_directories(onrobot_driver_plugin
+target_include_directories(onrobot_rg_driver_plugin
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   PRIVATE
   include
 )
-ament_target_dependencies(onrobot_driver_plugin
+ament_target_dependencies(onrobot_rg_driver_plugin
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
+
+# Build the 2FG hardware interface as a shared library
+add_library(onrobot_fg_driver_plugin
+  SHARED
+  src/fg_hardware_interface.cpp
+  src/FG.cpp
+  include/onrobot_driver/TCPConnectionWrapper.hpp
+  include/onrobot_driver/SerialConnectionWrapper.hpp
+  include/onrobot_driver/IModbusConnection.hpp
+)
+target_link_libraries(onrobot_fg_driver_plugin
+  Modbus
+)
+target_include_directories(onrobot_fg_driver_plugin
+  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  PRIVATE
+  include
+)
+ament_target_dependencies(onrobot_fg_driver_plugin
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
+
+# Build the gripper status monitor node
+add_executable(gripper_status_monitor
+  src/gripper_status_monitor.cpp
+)
+target_link_libraries(gripper_status_monitor
+  onrobot_rg_driver_plugin
+  onrobot_fg_driver_plugin
+)
+ament_target_dependencies(gripper_status_monitor
+  rclcpp
+  std_msgs
+)
+
+# Export plugin descriptions
 pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
 
 # INSTALL
-install(TARGETS onrobot_driver_plugin
-  DESTINATION lib
+install(TARGETS 
+  onrobot_rg_driver_plugin
+  onrobot_fg_driver_plugin
+  gripper_status_monitor
+  DESTINATION lib/${PROJECT_NAME}
 )
+
 install(
   DIRECTORY include/
   DESTINATION include
@@ -81,7 +125,8 @@ ament_export_include_directories(
   include
 )
 ament_export_libraries(
-  onrobot_driver_plugin
+  onrobot_rg_driver_plugin
+  onrobot_fg_driver_plugin
 )
 
 install(DIRECTORY include/
