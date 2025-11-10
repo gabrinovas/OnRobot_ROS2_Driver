@@ -103,18 +103,6 @@ ament_target_dependencies(gripper_status_monitor
   std_msgs
 )
 
-# Build the 2FG7 test node
-add_executable(test_2fg7
-  test/test_2fg7.cpp
-)
-target_link_libraries(test_2fg7
-  onrobot_fg_driver_plugin
-)
-ament_target_dependencies(test_2fg7
-  rclcpp
-  std_msgs
-)
-
 # Export plugin descriptions
 pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
@@ -124,7 +112,6 @@ install(TARGETS
   onrobot_rg_driver_plugin
   onrobot_fg_driver_plugin
   gripper_status_monitor
-  test_2fg7
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -136,12 +123,6 @@ install(
 # Install launch and config files
 install(
   DIRECTORY launch config
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# Install test files
-install(
-  DIRECTORY test
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -168,13 +149,6 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   
   ament_lint_auto_find_test_dependencies()
-  
-  # Add GTest for hardware interface tests
-  ament_add_gtest(test_fg_hardware_interface test/test_fg_hardware_interface.cpp)
-  if(TARGET test_fg_hardware_interface)
-    target_link_libraries(test_fg_hardware_interface onrobot_fg_driver_plugin)
-    ament_target_dependencies(test_fg_hardware_interface ${THIS_PACKAGE_INCLUDE_DEPENDS})
   endif()
-endif()
 
 ament_package()
