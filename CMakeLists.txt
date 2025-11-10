@@ -94,31 +94,10 @@ ament_target_dependencies(onrobot_fg_driver_plugin
 add_executable(gripper_status_monitor
   src/gripper_status_monitor.cpp
 )
-target_link_libraries(gripper_status_monitor
-  onrobot_rg_driver_plugin
-  onrobot_fg_driver_plugin
-)
 ament_target_dependencies(gripper_status_monitor
   rclcpp
   std_msgs
 )
-
-# Create plugin description files
-configure_file(
-  rg_hardware_interface.xml.in
-  onrobot_driver_rg_plugin_description.xml
-  @ONLY
-)
-
-configure_file(
-  fg_hardware_interface.xml.in
-  onrobot_driver_fg_plugin_description.xml
-  @ONLY
-)
-
-# Export plugin descriptions
-pluginlib_export_plugin_description_file(hardware_interface onrobot_driver_rg_plugin_description.xml)
-pluginlib_export_plugin_description_file(hardware_interface onrobot_driver_fg_plugin_description.xml)
 
 # INSTALL
 install(TARGETS 
@@ -139,11 +118,11 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Install plugin description files
+# Install the plugin description files that should already exist
 install(
   FILES 
-    ${CMAKE_CURRENT_BINARY_DIR}/onrobot_driver_rg_plugin_description.xml
-    ${CMAKE_CURRENT_BINARY_DIR}/onrobot_driver_fg_plugin_description.xml
+    rg_hardware_interface.xml
+    fg_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
