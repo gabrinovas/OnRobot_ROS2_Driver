@@ -103,9 +103,22 @@ ament_target_dependencies(gripper_status_monitor
   std_msgs
 )
 
+# Create plugin description files
+configure_file(
+  rg_hardware_interface.xml.in
+  onrobot_driver_rg_plugin_description.xml
+  @ONLY
+)
+
+configure_file(
+  fg_hardware_interface.xml.in
+  onrobot_driver_fg_plugin_description.xml
+  @ONLY
+)
+
 # Export plugin descriptions
-pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
-pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface onrobot_driver_rg_plugin_description.xml)
+pluginlib_export_plugin_description_file(hardware_interface onrobot_driver_fg_plugin_description.xml)
 
 # INSTALL
 install(TARGETS 
@@ -123,6 +136,14 @@ install(
 # Install launch and config files
 install(
   DIRECTORY launch config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install plugin description files
+install(
+  FILES 
+    ${CMAKE_CURRENT_BINARY_DIR}/onrobot_driver_rg_plugin_description.xml
+    ${CMAKE_CURRENT_BINARY_DIR}/onrobot_driver_fg_plugin_description.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -149,6 +170,6 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   
   ament_lint_auto_find_test_dependencies()
-  endif()
+endif()
 
 ament_package()

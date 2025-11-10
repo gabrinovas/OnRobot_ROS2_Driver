@@ -17,6 +17,8 @@ namespace rg_hardware_interface
 
     hardware_interface::CallbackReturn RGHardwareInterface::on_init(const hardware_interface::HardwareInfo &info)
     {
+        info_ = info; // Store the hardware info
+        
         // Retrieve the gripper type from the hardware parameters.
         if (info.hardware_parameters.find("onrobot_type") != info.hardware_parameters.end())
         {
@@ -92,20 +94,45 @@ namespace rg_hardware_interface
         // Initialise joint variables
         finger_width_state_ = 0.0;
         finger_width_command_ = 0.0;
+        
+        RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), "RG Hardware Interface initialized for %s", onrobot_type_.c_str());
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     hardware_interface::CallbackReturn RGHardwareInterface::on_configure(const rclcpp_lifecycle::State &)
     {
-        // Create the RG instance.
+        // Check for fake hardware parameter
+        bool use_fake_hardware = false;
+        if (info_.hardware_parameters.find("use_fake_hardware") != info_.hardware_parameters.end())
+        {
+            use_fake_hardware = (info_.hardware_parameters.at("use_fake_hardware") == "true");
+        }
+
+        if (use_fake_hardware)
+        {
+            RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), "Using fake hardware for RG gripper");
+            if (onrobot_type_ == "rg2") {
+                finger_width_state_ = 0.055; // Start at half-open for RG2
+            } else {
+                finger_width_state_ = 0.08; // Start at half-open for RG6
+            }
+            finger_width_command_ = finger_width_state_;
+            return hardware_interface::CallbackReturn::SUCCESS;
+        }
+
+        // Create the RG instance for real hardware
         try
         {
             if (connection_type_ == "tcp")
             {
+                RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), 
+                           "Creating TCP connection to %s:%d", ip_address_.c_str(), port_);
                 gripper_ = std::make_unique<RG>(onrobot_type_, ip_address_, port_);
             }
             else if (connection_type_ == "serial")
             {
+                RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), 
+                           "Creating Serial connection to %s", device_.c_str());
                 gripper_ = std::make_unique<RG>(onrobot_type_, device_);
             }
 
@@ -113,6 +140,9 @@ namespace rg_hardware_interface
             finger_width_state_ = gripper_->getWidthWithOffset();
             // Set the command to the current state to avoid moving to 0.0 at start.
             finger_width_command_ = finger_width_state_;
+            
+            RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), 
+                       "RG gripper configured. Initial width: %.3f m", finger_width_state_);
         }
         catch (const std::exception &e)
         {
@@ -127,28 +157,36 @@ namespace rg_hardware_interface
         if (gripper_)
         {
             gripper_.reset();
-            gripper_.release();
         }
+        RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), "RG Hardware Interface cleaned up");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     hardware_interface::CallbackReturn RGHardwareInterface::on_activate(const rclcpp_lifecycle::State &)
     {
+        RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), "RG Hardware Interface activated");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     hardware_interface::CallbackReturn RGHardwareInterface::on_deactivate(const rclcpp_lifecycle::State &)
     {
+        RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), "RG Hardware Interface deactivated");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     hardware_interface::CallbackReturn RGHardwareInterface::on_shutdown(const rclcpp_lifecycle::State &)
     {
+        if (gripper_)
+        {
+            gripper_.reset();
+        }
+        RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), "RG Hardware Interface shutdown");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     hardware_interface::CallbackReturn RGHardwareInterface::on_error(const rclcpp_lifecycle::State &)
     {
+        RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "RG Hardware Interface error occurred");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
@@ -170,6 +208,22 @@ namespace rg_hardware_interface
                                                               const rclcpp::Duration &)
     {
         std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+        
+        // Check for fake hardware
+        bool use_fake_hardware = false;
+        if (info_.hardware_parameters.find("use_fake_hardware") != info_.hardware_parameters.end())
+        {
+            use_fake_hardware = (info_.hardware_parameters.at("use_fake_hardware") == "true");
+        }
+
+        if (use_fake_hardware)
+        {
+            // For fake hardware, simulate gripper movement
+            float movement = (finger_width_command_ - finger_width_state_) * 0.1f;
+            finger_width_state_ += movement;
+            return hardware_interface::return_type::OK;
+        }
+        
         if (!gripper_)
         {
             RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Gripper not initialised");
@@ -191,6 +245,20 @@ namespace rg_hardware_interface
                                                                const rclcpp::Duration &)
     {
         std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+        
+        // Check for fake hardware
+        bool use_fake_hardware = false;
+        if (info_.hardware_parameters.find("use_fake_hardware") != info_.hardware_parameters.end())
+        {
+            use_fake_hardware = (info_.hardware_parameters.at("use_fake_hardware") == "true");
+        }
+
+        if (use_fake_hardware)
+        {
+            // For fake hardware, just accept the command
+            return hardware_interface::return_type::OK;
+        }
+        
         if (!gripper_)
         {
             RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Gripper not initialised");
@@ -199,6 +267,7 @@ namespace rg_hardware_interface
         try
         {
             gripper_->moveGripper(finger_width_command_);
+            RCLCPP_DEBUG(rclcpp::get_logger("RGHardwareInterface"), "Commanded gripper to width: %.3f m", finger_width_command_);
         }
         catch (const std::exception &e)
         {

@@ -8,7 +8,8 @@ namespace fg_hardware_interface
     FGHardwareInterface::FGHardwareInterface()
         : finger_width_state_(0.0),
           finger_width_command_(0.0),
-          device_address_(65)
+          device_address_(65),
+          use_fake_hardware_(false)
     {
     }
 
@@ -18,6 +19,8 @@ namespace fg_hardware_interface
 
     hardware_interface::CallbackReturn FGHardwareInterface::on_init(const hardware_interface::HardwareInfo &info)
     {
+        info_ = info; // Store the hardware info
+        
         // Retrieve the gripper type from the hardware parameters
         if (info.hardware_parameters.find("onrobot_type") != info.hardware_parameters.end())
         {
@@ -87,6 +90,12 @@ namespace fg_hardware_interface
             device_address_ = std::stoi(info.hardware_parameters.at("device_address"));
         }
 
+        // Retrieve use_fake_hardware parameter
+        if (info.hardware_parameters.find("use_fake_hardware") != info.hardware_parameters.end())
+        {
+            use_fake_hardware_ = (info.hardware_parameters.at("use_fake_hardware") == "true");
+        }
+
         // Retrieve the prefix from the hardware parameters
         if (info.hardware_parameters.find("prefix") != info.hardware_parameters.end())
         {
@@ -110,39 +119,67 @@ namespace fg_hardware_interface
         }
 
         // Initialize joint variables
-        finger_width_state_ = 0.0;
-        finger_width_command_ = 0.0;
+        finger_width_state_ = 0.035; // Start at half-open
+        finger_width_command_ = 0.035;
         
-        RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface initialized for %s", onrobot_type_.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG Hardware Interface initialized for %s (fake hardware: %s)", 
+                   onrobot_type_.c_str(), use_fake_hardware_ ? "true" : "false");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     hardware_interface::CallbackReturn FGHardwareInterface::on_configure(const rclcpp_lifecycle::State &)
     {
-        // Create the FG instance
+        // Only create real hardware interface if not using fake hardware
+        if (use_fake_hardware_)
+        {
+            RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "Using fake hardware for 2FG gripper");
+            finger_width_state_ = 0.035; // Start at half-open
+            finger_width_command_ = 0.035;
+            return hardware_interface::CallbackReturn::SUCCESS;
+        }
+
+        // Create the FG instance for real hardware
         try
         {
             if (connection_type_ == "tcp")
             {
-                RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "Creating TCP connection to %s:%d", ip_address_.c_str(), port_);
+                RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), 
+                           "Creating TCP connection to %s:%d, device address: %d", 
+                           ip_address_.c_str(), port_, device_address_);
                 gripper_ = std::make_unique<FG>(onrobot_type_, ip_address_, port_, device_address_);
             }
             else if (connection_type_ == "serial")
             {
-                RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "Creating Serial connection to %s", device_.c_str());
+                RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), 
+                           "Creating Serial connection to %s, device address: %d", 
+                           device_.c_str(), device_address_);
                 gripper_ = std::make_unique<FG>(onrobot_type_, device_, device_address_);
             }
+            else
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), 
+                            "Unsupported connection type: %s", connection_type_.c_str());
+                return hardware_interface::CallbackReturn::ERROR;
+            }
 
-            // Get the starting width of the gripper
-            finger_width_state_ = gripper_->getWidth();
-            // Set the command to the current state to avoid moving to 0.0 at start
-            finger_width_command_ = finger_width_state_;
+            // Test connection by reading initial width
+            float initial_width = gripper_->getWidth();
+            if (initial_width < 0) {
+                RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), 
+                            "Failed to read initial gripper width");
+                return hardware_interface::CallbackReturn::ERROR;
+            }
             
-            RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), "2FG gripper configured. Initial width: %.3f m", finger_width_state_);
+            finger_width_state_ = initial_width;
+            finger_width_command_ = initial_width;
+            
+            RCLCPP_INFO(rclcpp::get_logger("FGHardwareInterface"), 
+                       "2FG gripper configured. Initial width: %.3f m", finger_width_state_);
         }
         catch (const std::exception &e)
         {
-            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Failed to create FG instance: %s", e.what());
+            RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), 
+                        "Failed to create FG instance: %s", e.what());
             return hardware_interface::CallbackReturn::ERROR;
         }
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -204,6 +241,15 @@ namespace fg_hardware_interface
     hardware_interface::return_type FGHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration &)
     {
         std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+        
+        if (use_fake_hardware_)
+        {
+            // For fake hardware, simulate gripper movement
+            float movement = (finger_width_command_ - finger_width_state_) * 0.1f;
+            finger_width_state_ += movement;
+            return hardware_interface::return_type::OK;
+        }
+        
         if (!gripper_)
         {
             RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Gripper not initialized");
@@ -229,6 +275,13 @@ namespace fg_hardware_interface
     hardware_interface::return_type FGHardwareInterface::write(const rclcpp::Time &, const rclcpp::Duration &)
     {
         std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+        
+        if (use_fake_hardware_)
+        {
+            // For fake hardware, just accept the command
+            return hardware_interface::return_type::OK;
+        }
+        
         if (!gripper_)
         {
             RCLCPP_ERROR(rclcpp::get_logger("FGHardwareInterface"), "Gripper not initialized");

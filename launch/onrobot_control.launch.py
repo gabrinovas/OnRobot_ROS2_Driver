@@ -143,9 +143,8 @@ def generate_launch_description():
     robot_description = {'robot_description': robot_description_content}
 
     # Determine which controller config to use based on gripper type
-    def get_controller_config():
-        onrobot_type_val = onrobot_type
-        if onrobot_type_val.perform(None).startswith('2fg'):
+    def get_controller_config(onrobot_type_val):
+        if onrobot_type_val.startswith('2fg'):
             return PathJoinSubstitution([
                 FindPackageShare('onrobot_driver'),
                 'config',
@@ -158,20 +157,22 @@ def generate_launch_description():
                 'rg_controllers.yaml'
             ])
 
-    # Path to the appropriate controller configuration file
-    controller_config_file = get_controller_config()
-    controller_config = ParameterFile(controller_config_file, allow_substs=True)
-
     # Determine which hardware interface to use based on gripper type
-    def get_hardware_interface():
-        onrobot_type_val = onrobot_type
-        if onrobot_type_val.perform(None).startswith('2fg'):
+    def get_hardware_interface(onrobot_type_val):
+        if onrobot_type_val.startswith('2fg'):
             return 'onrobot_driver/FGHardwareInterface'
         else:  # rg2, rg6
             return 'onrobot_driver/RGHardwareInterface'
 
+    # Get the actual values for context-dependent operations
+    onrobot_type_val = onrobot_type.perform(None) if hasattr(onrobot_type, 'perform') else 'rg2'
+    
+    # Path to the appropriate controller configuration file
+    controller_config_file = get_controller_config(onrobot_type_val)
+    controller_config = ParameterFile(controller_config_file, allow_substs=True)
+
     # Add hardware interface parameter to robot description
-    hardware_interface_plugin = get_hardware_interface()
+    hardware_interface_plugin = get_hardware_interface(onrobot_type_val)
     robot_description_with_hw = robot_description.copy()
     robot_description_with_hw['hardware_interface_plugin'] = hardware_interface_plugin
 
