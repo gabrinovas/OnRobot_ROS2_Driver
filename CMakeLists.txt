@@ -151,4 +151,8 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+# Export hardware plugins
+pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
+
 ament_package()
