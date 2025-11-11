@@ -2,7 +2,7 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-namespace fg_hardware_interface
+namespace onrobot_driver
 {
 
     FGHardwareInterface::FGHardwareInterface()
