@@ -308,4 +308,5 @@ namespace fg_hardware_interface
 } // namespace fg_hardware_interface
 
 // Export the hardware interface as a plugin for ros2_control
-PLUGINLIB_EXPORT_CLASS(fg_hardware_interface::FGHardwareInterface, hardware_interface::ActuatorInterface)
+//PLUGINLIB_EXPORT_CLASS(fg_hardware_interface::FGHardwareInterface, hardware_interface::ActuatorInterface)
+PLUGINLIB_EXPORT_CLASS(onrobot_driver::FGHardwareInterface, hardware_interface::ActuatorInterface)

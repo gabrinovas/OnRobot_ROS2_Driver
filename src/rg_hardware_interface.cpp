@@ -281,3 +281,4 @@ namespace rg_hardware_interface
 
 // Export the hardware interface as a plugin for ros2_control.
 PLUGINLIB_EXPORT_CLASS(rg_hardware_interface::RGHardwareInterface, hardware_interface::ActuatorInterface)
+//PLUGINLIB_EXPORT_CLASS(onrobot_driver::RGHardwareInterface, hardware_interface::ActuatorInterface)
