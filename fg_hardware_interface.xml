@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <library path="onrobot_fg_driver_plugin">
-  <class name="onrobot_driver::FGHardwareInterface"
+  <class name="onrobot_driver/FGHardwareInterface"
          type="onrobot_driver::FGHardwareInterface"
          base_class_type="hardware_interface::ActuatorInterface">
     <description>
