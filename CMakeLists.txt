@@ -4,6 +4,7 @@ project(onrobot_driver)
 # Enable PIC for all targets
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
@@ -17,12 +18,13 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
+# Include directories
 include_directories(
   include
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver
-  ${rclcpp_INCLUDE_DIRS}
 )
 
+# List of dependencies
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   controller_manager
   controller_manager_msgs
@@ -36,13 +38,15 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   tf2_geometry_msgs
 )
 
-# Enable serial communication for the Modbus library.
+# Enable serial communication for the Modbus library
 set(MODBUS_SERIAL_COMMUNICATION ON CACHE BOOL "Enable Modbus Serial Communication" FORCE)
 
-# Add the Modbus library as a subdirectory.
+# Add the Modbus library as a subdirectory
 add_subdirectory(include/onrobot_driver/Modbus)
 
-# Build the RG hardware interface as a shared library.
+# =============================================================================
+# Build the RG hardware interface as a shared library
+# =============================================================================
 add_library(onrobot_rg_driver_plugin
   SHARED
   src/rg_hardware_interface.cpp
@@ -51,22 +55,27 @@ add_library(onrobot_rg_driver_plugin
   include/onrobot_driver/SerialConnectionWrapper.hpp
   include/onrobot_driver/IModbusConnection.hpp
 )
+
 target_link_libraries(onrobot_rg_driver_plugin
   Modbus
+  pluginlib::pluginlib  # NECESARIO para PLUGINLIB_EXPORT_CLASS
 )
+
 target_include_directories(onrobot_rg_driver_plugin
   PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
   PRIVATE
-  include
+    include
 )
+
 ament_target_dependencies(onrobot_rg_driver_plugin
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
+# =============================================================================
 # Build the 2FG hardware interface as a shared library
+# =============================================================================
 add_library(onrobot_fg_driver_plugin
   SHARED
   src/fg_hardware_interface.cpp
@@ -75,35 +84,44 @@ add_library(onrobot_fg_driver_plugin
   include/onrobot_driver/SerialConnectionWrapper.hpp
   include/onrobot_driver/IModbusConnection.hpp
 )
+
 target_link_libraries(onrobot_fg_driver_plugin
   Modbus
+  pluginlib::pluginlib  # NECESARIO para PLUGINLIB_EXPORT_CLASS
 )
+
 target_include_directories(onrobot_fg_driver_plugin
   PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
   PRIVATE
-  include
+    include
 )
+
 ament_target_dependencies(onrobot_fg_driver_plugin
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
+# =============================================================================
 # Build the gripper status monitor node
+# =============================================================================
 add_executable(gripper_status_monitor
   src/gripper_status_monitor.cpp
 )
+
 ament_target_dependencies(gripper_status_monitor
   rclcpp
   std_msgs
 )
 
+# =============================================================================
 # INSTALL
-install(TARGETS 
-  onrobot_rg_driver_plugin
-  onrobot_fg_driver_plugin
-  gripper_status_monitor
+# =============================================================================
+install(
+  TARGETS
+    onrobot_rg_driver_plugin
+    onrobot_fg_driver_plugin
+    gripper_status_monitor
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -118,23 +136,22 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Install the plugin description files that should already exist
+# Install the plugin description files
 install(
-  FILES 
+  FILES
     rg_hardware_interface.xml
     fg_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
+# =============================================================================
 # EXPORTS
-ament_export_include_directories(
-  include
-)
+# =============================================================================
+ament_export_include_directories(include)
 ament_export_libraries(
   onrobot_rg_driver_plugin
   onrobot_fg_driver_plugin
 )
-
 ament_export_dependencies(
   hardware_interface
   pluginlib
@@ -143,16 +160,19 @@ ament_export_dependencies(
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
-# Add tests if testing is enabled
+# =============================================================================
+# Export hardware plugins (pluginlib registration)
+# =============================================================================
+pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
+
+# =============================================================================
+# Testing (optional)
+# =============================================================================
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
-  
   ament_lint_auto_find_test_dependencies()
 endif()
-
-# Export hardware plugins
-pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
-pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
 
 ament_package()
