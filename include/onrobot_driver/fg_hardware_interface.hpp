@@ -14,7 +14,7 @@
 
 #include "FG.hpp"
 
-namespace fg_hardware_interface
+namespace onrobot_driver
 {
 
     class FGHardwareInterface : public hardware_interface::ActuatorInterface
