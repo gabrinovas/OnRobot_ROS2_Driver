@@ -5,7 +5,7 @@ FG::FG(const std::string &type, const std::string &ip, int port, int device_addr
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
-    if (type != "2fg7" && type != "2fg14")
+    if (type != "2fg7" && type != "2fg14" && type!="3fg15")
         throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
 
     // Attempt to establish TCP connection, retrying until successful
@@ -34,7 +34,7 @@ FG::FG(const std::string &type, const std::string &device, int device_address)
 {
     if (device.empty())
         throw std::invalid_argument("Please provide a serial device for connection.");
-    if (type != "2fg7" && type != "2fg14")
+    if (type != "2fg7" && type != "2fg14" && type!="3fg15")
         throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
 
     // Attempt to establish Serial connection, retrying until successful

@@ -19,7 +19,7 @@
 class FG {
 public:
     // Constructors for TCP and Serial connections
-    FG(const std::string &type, const std::string &ip, int port, int device_address = 65);
+    FG(const std::string &type, const std::string &ip, int port, int device_address);
     FG(const std::string &type, const std::string &device, int device_address = 65);
     ~FG();
 
