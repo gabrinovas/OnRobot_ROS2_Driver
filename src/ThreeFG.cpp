@@ -8,6 +8,16 @@ ThreeFG::ThreeFG(const std::string &type, const std::string &ip, int port, int d
     if (type != "3fg15" && type != "3fg25")
         throw std::invalid_argument("Please specify either '3fg15' or '3fg25'.");
 
+    // Set specifications based on type
+    if (type == "3fg15") {
+        MAX_WIDTH = 0.15f;   // 150mm for 3FG15
+        MAX_FORCE = 140.0f;  // 140N for 3FG15
+    } else { // 3fg25
+        MAX_WIDTH = 0.25f;   // 250mm for 3FG25  
+        MAX_FORCE = 140.0f;  // 140N for 3FG25
+    }
+    MIN_WIDTH = 0.0f;
+
     while (true) {
         try {
             connection = std::make_unique<TCPConnectionWrapper>(ip, port);
@@ -30,6 +40,16 @@ ThreeFG::ThreeFG(const std::string &type, const std::string &device, int device_
         throw std::invalid_argument("Please provide a serial device for connection.");
     if (type != "3fg15" && type != "3fg25")
         throw std::invalid_argument("Please specify either '3fg15' or '3fg25'.");
+
+    // Set specifications based on type
+    if (type == "3fg15") {
+        MAX_WIDTH = 0.15f;   // 150mm for 3FG15
+        MAX_FORCE = 140.0f;  // 140N for 3FG15
+    } else { // 3fg25
+        MAX_WIDTH = 0.25f;   // 250mm for 3FG25  
+        MAX_FORCE = 140.0f;  // 140N for 3FG25
+    }
+    MIN_WIDTH = 0.0f;
 
     while (true) {
         try {
@@ -79,6 +99,13 @@ void ThreeFG::moveGripper(float width_val, bool external_grip)
 {
     float clamped_width = std::max(MIN_WIDTH, std::min(width_val, MAX_WIDTH));
     
+    // Check if gripper is busy
+    uint16_t status = getStatusRaw();
+    if (status & STATUS_BUSY) {
+        std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
+        return;
+    }
+    
     setTargetWidth(clamped_width);
     setGripType(external_grip ? GRIP_EXTERNAL : GRIP_INTERNAL);
     setControl(CMD_GRIP);
@@ -87,6 +114,13 @@ void ThreeFG::moveGripper(float width_val, bool external_grip)
 void ThreeFG::flexibleGrip(float width_val)
 {
     float clamped_width = std::max(MIN_WIDTH, std::min(width_val, MAX_WIDTH));
+    
+    // Check if gripper is busy
+    uint16_t status = getStatusRaw();
+    if (status & STATUS_BUSY) {
+        std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
+        return;
+    }
     
     setTargetWidth(clamped_width);
     setControl(CMD_FLEXIBLE_GRIP);
@@ -219,10 +253,98 @@ uint16_t ThreeFG::getStatusRaw()
 
 float ThreeFG::getMinWidth()
 {
-    return MIN_WIDTH;
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_MIN_DIAMETER, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return fromTenthMM(regValue);
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read minimum width." << std::endl;
+        return MIN_WIDTH;
+    }
 }
 
 float ThreeFG::getMaxWidth()
 {
-    return MAX_WIDTH;
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_MAX_DIAMETER, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return fromTenthMM(regValue);
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read maximum width." << std::endl;
+        return MAX_WIDTH;
+    }
+}
+
+float ThreeFG::getCurrentForce()
+{
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_FORCE_APPLIED, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return static_cast<float>(regValue) / 10.0f; // Force in 1/10 %
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read current force." << std::endl;
+        return -1.0f;
+    }
+}
+
+void ThreeFG::setFingerLength(float length_mm)
+{
+    uint16_t length_tenth_mm = static_cast<uint16_t>(length_mm * 10.0f);
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell(length_tenth_mm)};
+    MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, 
+                         REG_SET_FINGER_LENGTH, 1, values);
+    try
+    {
+        sendRequest(req);
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to set finger length." << std::endl;
+        throw;
+    }
+}
+
+void ThreeFG::setFingerPosition(uint16_t position)
+{
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell(position)};
+    MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, 
+                         REG_SET_FINGER_POSITION, 1, values);
+    try
+    {
+        sendRequest(req);
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to set finger position." << std::endl;
+        throw;
+    }
+}
+
+void ThreeFG::setFingertipOffset(float offset_mm)
+{
+    uint16_t offset_hundredth_mm = static_cast<uint16_t>(offset_mm * 100.0f);
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell(offset_hundredth_mm)};
+    MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, 
+                         REG_SET_FINGERTIP_OFFSET, 1, values);
+    try
+    {
+        sendRequest(req);
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to set fingertip offset." << std::endl;
+        throw;
+    }
 }

@@ -25,12 +25,15 @@ public:
 
     // Control commands
     void grip();
+    void gripWithStatus();
     void release();
     void idle();
     
     // Channel control
     void setChannelA(uint8_t control_mode, uint8_t target_vacuum = 0);
     void setChannelB(uint8_t control_mode, uint8_t target_vacuum = 0);
+    void gripChannelA(uint8_t target_vacuum);
+    void gripChannelB(uint8_t target_vacuum);
     
     // Configuration
     void setCurrentLimit(uint16_t current_ma);
@@ -39,6 +42,7 @@ public:
     float getChannelAVacuum();
     float getChannelBVacuum();
     std::vector<int> getStatus();
+    bool isGripping();
 
 private:
     std::unique_ptr<IModbusConnection> connection;

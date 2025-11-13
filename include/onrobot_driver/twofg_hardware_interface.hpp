@@ -44,7 +44,7 @@ namespace onrobot_driver
         // The gripper instance
         std::unique_ptr<TwoFG> gripper_;
         std::string prefix_;
-        hardware_interface::HardwareInfo info_;  // Store hardware info for parameter access
+        hardware_interface::HardwareInfo info_;
 
         // Internal joint variables
         double finger_width_state_;   // measured state (m)
@@ -58,6 +58,7 @@ namespace onrobot_driver
         std::string device_;
         int device_address_;
         bool use_fake_hardware_;
+        bool auto_detect_;  // Auto-detection flag
 
         // Mutex for thread safety
         std::mutex hw_interface_mutex_;

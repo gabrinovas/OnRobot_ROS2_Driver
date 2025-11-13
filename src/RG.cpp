@@ -8,6 +8,22 @@ RG::RG(const std::string &type, const std::string &ip, int port)
     if (type != "rg2" && type != "rg6")
         throw std::invalid_argument("Please specify either 'rg2' or 'rg6'.");
 
+    // Set specifications based on type
+    if (type == "rg2")
+    {
+        max_width = 0.11f;
+        max_force = 40.0f;
+        min_width = 0.0f;
+        default_fingertip_offset = 0.0049f;
+    }
+    else if (type == "rg6")
+    {
+        max_width = 0.16f;
+        max_force = 120.0f;
+        min_width = 0.0f;
+        default_fingertip_offset = 0.0f;
+    }
+
     // Attempt to establish TCP connection, retrying until successful
     while (true) {
         try {
@@ -20,18 +36,6 @@ RG::RG(const std::string &type, const std::string &ip, int port)
         }
     }
 
-    if (type == "rg2")
-    {
-        max_width = 0.11;
-        max_force = 40.0;
-        default_fingertip_offset = 0.0049;
-    }
-    else if (type == "rg6")
-    {
-        max_width = 0.16;
-        max_force = 120.0;
-        default_fingertip_offset = 0.0; // TODO: Calibrate and set this value.
-    }
     default_force = max_force / 2;
 
     // Set these defaults on the gripper.
@@ -47,6 +51,22 @@ RG::RG(const std::string &type, const std::string &device)
     if (type != "rg2" && type != "rg6")
         throw std::invalid_argument("Please specify either 'rg2' or 'rg6'.");
 
+    // Set specifications based on type
+    if (type == "rg2")
+    {
+        max_width = 0.11f;
+        max_force = 40.0f;
+        min_width = 0.0f;
+        default_fingertip_offset = 0.0049f;
+    }
+    else if (type == "rg6")
+    {
+        max_width = 0.16f;
+        max_force = 120.0f;
+        min_width = 0.0f;
+        default_fingertip_offset = 0.0f;
+    }
+
     // Attempt to establish Serial connection, retrying until successful
     while (true) {
         try {
@@ -59,18 +79,6 @@ RG::RG(const std::string &type, const std::string &device)
         }
     }
 
-    if (type == "rg2")
-    {
-        max_width = 0.11;
-        max_force = 40.0;
-        default_fingertip_offset = 0.0049;
-    }
-    else if (type == "rg6")
-    {
-        max_width = 0.16;
-        max_force = 120.0;
-        default_fingertip_offset = 0.0; // TODO: Calibrate and set this value.
-    }
     default_force = max_force / 2;
 
     // Set these defaults on the gripper.
@@ -97,12 +105,32 @@ MB::ModbusResponse RG::sendRequest(const MB::ModbusRequest &req)
     }
 }
 
+float RG::fromTenthMM(uint16_t tenth_mm)
+{
+    return static_cast<float>(tenth_mm) / 10000.0f;
+}
+
+uint16_t RG::toTenthMM(float meters)
+{
+    return static_cast<uint16_t>(meters * 10000.0f);
+}
+
 void RG::moveGripper(float width_val)
 {
+    // Clamp width to valid range
+    float clamped_width = std::max(min_width, std::min(width_val, max_width));
+    
+    // Check if gripper is busy before sending command
+    uint16_t status = getStatus()[0];
+    if (status & STATUS_BUSY) {
+        std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
+        return;
+    }
+    
     // First stop any ongoing motion.
     setControlMode(CMD_STOP);
     // Then set the target width
-    setTargetWidth(width_val);
+    setTargetWidth(clamped_width);
     // Finally, execute the motion command.
     setControlMode(CMD_GRIP_WITH_OFFSET);
 }
@@ -118,7 +146,7 @@ void RG::closeGripper()
 {
     // Close gripper: target width is 0.
     std::cout << "Closing gripper to min width: 0" << std::endl;
-    moveGripper(0);
+    moveGripper(min_width);
 }
 
 void RG::setControlMode(uint16_t command)
@@ -138,7 +166,9 @@ void RG::setControlMode(uint16_t command)
 
 void RG::setTargetForce(float force_val)
 {
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(force_val*10.0f))};
+    // Clamp force to valid range
+    float clamped_force = std::max(0.0f, std::min(force_val, max_force));
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(clamped_force*10.0f))};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_FORCE, 1, values);
     try
     {
@@ -152,7 +182,9 @@ void RG::setTargetForce(float force_val)
 
 void RG::setTargetWidth(float width_val)
 {
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(width_val*10000.0f))};
+    // Clamp width to valid range
+    float clamped_width = std::max(min_width, std::min(width_val, max_width));
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(clamped_width*10000.0f))};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_WIDTH, 1, values);
     try
     {
@@ -219,13 +251,13 @@ std::vector<int> RG::getStatus()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t reg = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        status_list[0] = (reg & (1 << 0)) ? 1 : 0;
-        status_list[1] = (reg & (1 << 1)) ? 1 : 0;
-        status_list[2] = (reg & (1 << 2)) ? 1 : 0;
-        status_list[3] = (reg & (1 << 3)) ? 1 : 0;
-        status_list[4] = (reg & (1 << 4)) ? 1 : 0;
-        status_list[5] = (reg & (1 << 5)) ? 1 : 0;
-        status_list[6] = (reg & (1 << 6)) ? 1 : 0;
+        status_list[0] = (reg & STATUS_BUSY) ? 1 : 0;
+        status_list[1] = (reg & STATUS_GRIP_DETECTED) ? 1 : 0;
+        status_list[2] = (reg & STATUS_S1_PUSHED) ? 1 : 0;
+        status_list[3] = (reg & STATUS_S1_TRIGGERED) ? 1 : 0;
+        status_list[4] = (reg & STATUS_S2_PUSHED) ? 1 : 0;
+        status_list[5] = (reg & STATUS_S2_TRIGGERED) ? 1 : 0;
+        status_list[6] = (reg & STATUS_SAFETY_ERROR) ? 1 : 0;
     }
     catch (const MB::ModbusException &)
     {
@@ -244,37 +276,37 @@ std::vector<int> RG::getStatusAndPrint()
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t reg = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
         // Interpret individual bits.
-        if (reg & (1 << 0))
+        if (reg & STATUS_BUSY)
         {
             std::cout << "A motion is ongoing so new commands are not accepted." << std::endl;
             status_list[0] = 1;
         }
-        if (reg & (1 << 1))
+        if (reg & STATUS_GRIP_DETECTED)
         {
             std::cout << "An internal- or external grip is detected." << std::endl;
             status_list[1] = 1;
         }
-        if (reg & (1 << 2))
+        if (reg & STATUS_S1_PUSHED)
         {
             std::cout << "Safety switch 1 is pushed." << std::endl;
             status_list[2] = 1;
         }
-        if (reg & (1 << 3))
+        if (reg & STATUS_S1_TRIGGERED)
         {
             std::cout << "Safety circuit 1 is activated so it will not move." << std::endl;
             status_list[3] = 1;
         }
-        if (reg & (1 << 4))
+        if (reg & STATUS_S2_PUSHED)
         {
             std::cout << "Safety switch 2 is pushed." << std::endl;
             status_list[4] = 1;
         }
-        if (reg & (1 << 5))
+        if (reg & STATUS_S2_TRIGGERED)
         {
             std::cout << "Safety circuit 2 is activated so it will not move." << std::endl;
             status_list[5] = 1;
         }
-        if (reg & (1 << 6))
+        if (reg & STATUS_SAFETY_ERROR)
         {
             std::cout << "Any of the safety switches is pushed." << std::endl;
             status_list[6] = 1;
@@ -302,4 +334,31 @@ float RG::getWidthWithOffset()
         std::cerr << "Failed to read width with offset." << std::endl;
         return -1.0f;
     }
+}
+
+float RG::getCurrentForce()
+{
+    MB::ModbusRequest req(DEVICE_ID, MB::utils::ReadAnalogOutputHoldingRegisters, REG_FORCE, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return static_cast<float>(regValue) / 10.0f; // Force in N (divided by 10 based on documentation)
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read current force." << std::endl;
+        return -1.0f;
+    }
+}
+
+float RG::getMinWidth()
+{
+    // For RG grippers, minimum width is typically 0
+    return min_width;
+}
+
+float RG::getMaxWidth()
+{
+    return max_width;
 }

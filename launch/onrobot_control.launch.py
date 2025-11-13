@@ -26,6 +26,7 @@ def generate_launch_description():
     launch_rviz = LaunchConfiguration('launch_rviz')
     launch_rsp = LaunchConfiguration('launch_rsp')
     use_fake_hardware = LaunchConfiguration('use_fake_hardware')
+    auto_detect = LaunchConfiguration('auto_detect')
 
     # Declare launch arguments
     declared_arguments = []
@@ -108,6 +109,13 @@ def generate_launch_description():
             description='Use fake hardware interface for testing.',
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            'auto_detect',
+            default_value='false',
+            description='Automatically detect connected gripper type. If enabled, will override onrobot_type parameter with detected type.',
+        )
+    )
 
     # Path to the xacro file in the onrobot_description package
     xacro_file = PathJoinSubstitution([
@@ -137,6 +145,8 @@ def generate_launch_description():
         'prefix:=', prefix,
         ' ',
         'use_fake_hardware:=', use_fake_hardware,
+        ' ',
+        'auto_detect:=', auto_detect,
         ' ',
         'name:=onrobot'
     ])
@@ -197,7 +207,20 @@ def generate_launch_description():
         package='controller_manager',
         executable='ros2_control_node',
         parameters=[robot_description_with_hw, controller_config],
-        output='screen'
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('use_fake_hardware').equals('false')),
+        arguments=['--ros-args', '--log-level', 'info']
+    )
+
+    # Launch the ros2_control node for fake hardware (if needed)
+    ros2_control_node_fake = Node(
+        namespace=ns,
+        package='controller_manager',
+        executable='ros2_control_node',
+        parameters=[robot_description_with_hw, controller_config],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('use_fake_hardware').equals('true')),
+        arguments=['--ros-args', '--log-level', 'info']
     )
 
     # Launch the robot state publisher
@@ -215,7 +238,7 @@ def generate_launch_description():
         namespace=ns,
         package='controller_manager',
         executable='spawner',
-        arguments=['joint_state_broadcaster'],
+        arguments=['joint_state_broadcaster', '--controller-manager', '/onrobot/controller_manager'],
         output='screen'
     )
     
@@ -230,7 +253,7 @@ def generate_launch_description():
         namespace=ns,
         package='controller_manager',
         executable='spawner',
-        arguments=[controller_name],
+        arguments=[controller_name, '--controller-manager', '/onrobot/controller_manager'],
         output='screen'
     )
 
@@ -259,6 +282,28 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'onrobot_type': onrobot_type,
+            'connection_type': connection_type,
+            'ip_address': ip_address,
+            'port': port,
+            'device': device,
+            'device_address': device_address,
+            'prefix': prefix,
+            'auto_detect': auto_detect,
+        }]
+    )
+
+    # Information node to display launch configuration
+    info_node = Node(
+        namespace=ns,
+        package='onrobot_driver',
+        executable='gripper_info',
+        name='gripper_info',
+        output='screen',
+        parameters=[{
+            'onrobot_type': onrobot_type,
+            'connection_type': connection_type,
+            'auto_detect': auto_detect,
+            'use_fake_hardware': use_fake_hardware,
         }]
     )
 
@@ -268,11 +313,13 @@ def generate_launch_description():
 
         # Launch nodes
         ros2_control_node,
+        ros2_control_node_fake,
         robot_state_publisher_node,
         joint_state_spawner,
         finger_width_spawner,
         rviz_node,
         gripper_status_node,
+        info_node,
     ]
 
     return LaunchDescription(nodes_to_start)

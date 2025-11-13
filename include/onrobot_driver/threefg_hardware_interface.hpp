@@ -58,6 +58,7 @@ namespace onrobot_driver
         std::string device_;
         int device_address_;
         bool use_fake_hardware_;
+        bool auto_detect_;
 
         // Mutex for thread safety
         std::mutex hw_interface_mutex_;

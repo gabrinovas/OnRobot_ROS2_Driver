@@ -44,16 +44,22 @@ public:
     // Utility functions
     float getMinWidth();
     float getMaxWidth();
+    float getCurrentForce();
+
+    // Finger configuration methods
+    void setFingerLength(float length_mm);
+    void setFingerPosition(uint16_t position);
+    void setFingertipOffset(float offset_mm);
 
 private:
     std::unique_ptr<IModbusConnection> connection;
     std::string type;
     int device_address_;
     
-    // 3FG specifications (in meters)
-    static constexpr float MAX_WIDTH = 0.15f;  // 150mm for 3FG15
-    static constexpr float MIN_WIDTH = 0.0f;
-    static constexpr float MAX_FORCE = 140.0f;  // 140N for 3FG15
+    // 3FG specifications (in meters) - made non-const for auto-detection
+    float MAX_WIDTH;
+    float MIN_WIDTH;
+    float MAX_FORCE;
 
     // Default parameters
     float default_force_;
@@ -67,8 +73,14 @@ private:
     static constexpr uint16_t REG_RAW_DIAMETER = 257;
     static constexpr uint16_t REG_DIAMETER_WITH_OFFSET = 258;
     static constexpr uint16_t REG_FORCE_APPLIED = 259;
+    static constexpr uint16_t REG_FINGER_LENGTH_READ = 270;
+    static constexpr uint16_t REG_FINGER_POSITION = 272;
+    static constexpr uint16_t REG_FINGERTIP_OFFSET_READ = 273;
     static constexpr uint16_t REG_MIN_DIAMETER = 513;
     static constexpr uint16_t REG_MAX_DIAMETER = 514;
+    static constexpr uint16_t REG_SET_FINGER_LENGTH = 1025;
+    static constexpr uint16_t REG_SET_FINGER_POSITION = 1027;
+    static constexpr uint16_t REG_SET_FINGERTIP_OFFSET = 1028;
 
     // Control commands
     static constexpr uint16_t CMD_GRIP = 1;

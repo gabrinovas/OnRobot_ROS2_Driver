@@ -10,9 +10,10 @@ public:
     SerialConnectionWrapper(const std::string &device)
     : connection(device) {
         connection.connect();
-        connection.setTwoStopBits(false); // Use one stop bit
-        connection.setEvenParity();
-        connection.setBaudRate(115200);
+        connection.setTwoStopBits(false); // Use one stop bit (from documentation)
+        connection.setEvenParity();       // Even parity (from documentation)
+        connection.setBaudRate(1000000);  // 1,000,000 bit/sec (from documentation)
+        connection.setDataBits(8);        // 8 data bits (from documentation)
         connection.setTimeout(1000);
     }
 

@@ -43,16 +43,17 @@ public:
     // Utility functions
     float getMinWidth();
     float getMaxWidth();
+    float getCurrentForce();
 
 private:
     std::unique_ptr<IModbusConnection> connection;
     std::string type;
     int device_address_;
     
-    // 2FG7 specifications (in meters)
-    static constexpr float MAX_WIDTH = 0.07f;  // 70mm for 2FG7
-    static constexpr float MIN_WIDTH = 0.0f;
-    static constexpr float MAX_FORCE = 70.0f;  // 70N for 2FG7
+    // 2FG specifications (in meters) - made non-const to allow setting in constructor
+    float MAX_WIDTH;
+    float MIN_WIDTH;
+    float MAX_FORCE;
 
     // Default parameters
     float default_force_;

@@ -1,4 +1,5 @@
 #include "onrobot_driver/threefg_hardware_interface.hpp"
+#include "onrobot_driver/GripperDetection.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -9,7 +10,8 @@ namespace onrobot_driver
         : finger_width_state_(0.0),
           finger_width_command_(0.0),
           device_address_(65),
-          use_fake_hardware_(false)
+          use_fake_hardware_(false),
+          auto_detect_(false)
     {
     }
 
@@ -37,7 +39,7 @@ namespace onrobot_driver
             return hardware_interface::CallbackReturn::ERROR;
         }
 
-        // Connection parameters (same as FG)
+        // Connection parameters
         if (info.hardware_parameters.find("connection_type") != info.hardware_parameters.end())
         {
             connection_type_ = info.hardware_parameters.at("connection_type");
@@ -83,11 +85,20 @@ namespace onrobot_driver
         if (info.hardware_parameters.find("device_address") != info.hardware_parameters.end())
         {
             device_address_ = std::stoi(info.hardware_parameters.at("device_address"));
+        } else {
+            // Default device address for 3FG series is 65
+            device_address_ = 65;
         }
 
         if (info.hardware_parameters.find("use_fake_hardware") != info.hardware_parameters.end())
         {
             use_fake_hardware_ = (info.hardware_parameters.at("use_fake_hardware") == "true");
+        }
+
+        // Retrieve auto_detect parameter
+        if (info.hardware_parameters.find("auto_detect") != info.hardware_parameters.end())
+        {
+            auto_detect_ = (info.hardware_parameters.at("auto_detect") == "true");
         }
 
         if (info.hardware_parameters.find("prefix") != info.hardware_parameters.end())
@@ -110,11 +121,19 @@ namespace onrobot_driver
             return hardware_interface::CallbackReturn::ERROR;
         }
 
-        finger_width_state_ = 0.075; // Start at half-open
-        finger_width_command_ = 0.075;
+        // Initialize joint variables based on gripper type
+        if (onrobot_type_ == "3fg15") {
+            finger_width_state_ = 0.075; // Start at half-open for 3FG15
+        } else {
+            finger_width_state_ = 0.125; // Start at half-open for 3FG25
+        }
+        finger_width_command_ = finger_width_state_;
         
-        RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), "3FG Hardware Interface initialized for %s (fake hardware: %s)", 
-                   onrobot_type_.c_str(), use_fake_hardware_ ? "true" : "false");
+        RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), 
+                   "3FG Hardware Interface initialized for %s (auto_detect: %s, fake hardware: %s)", 
+                   onrobot_type_.c_str(), 
+                   auto_detect_ ? "true" : "false",
+                   use_fake_hardware_ ? "true" : "false");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
@@ -123,13 +142,66 @@ namespace onrobot_driver
         if (use_fake_hardware_)
         {
             RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), "Using fake hardware for 3FG gripper");
-            finger_width_state_ = 0.075;
-            finger_width_command_ = 0.075;
+            if (onrobot_type_ == "3fg15") {
+                finger_width_state_ = 0.075;
+            } else {
+                finger_width_state_ = 0.125;
+            }
+            finger_width_command_ = finger_width_state_;
             return hardware_interface::CallbackReturn::SUCCESS;
         }
 
         try
         {
+            std::unique_ptr<IModbusConnection> temp_connection;
+            
+            // Create temporary connection for detection
+            if (connection_type_ == "tcp")
+            {
+                temp_connection = std::make_unique<TCPConnectionWrapper>(ip_address_, port_);
+            }
+            else if (connection_type_ == "serial")
+            {
+                temp_connection = std::make_unique<SerialConnectionWrapper>(device_);
+            }
+            else
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("ThreeFGHardwareInterface"), 
+                            "Unsupported connection type: %s", connection_type_.c_str());
+                return hardware_interface::CallbackReturn::ERROR;
+            }
+
+            // Auto-detect gripper type if enabled
+            if (auto_detect_) {
+                std::string detected_type = GripperDetection::detectGripperType(temp_connection, device_address_);
+                
+                if (!detected_type.empty()) {
+                    if (detected_type != onrobot_type_) {
+                        RCLCPP_WARN(rclcpp::get_logger("ThreeFGHardwareInterface"), 
+                                   "Auto-detected gripper type: %s (configured: %s)", 
+                                   detected_type.c_str(), onrobot_type_.c_str());
+                        
+                        // Check if detected type is compatible with this hardware interface
+                        if (detected_type.find("3fg") == std::string::npos) {
+                            RCLCPP_ERROR(rclcpp::get_logger("ThreeFGHardwareInterface"), 
+                                       "Detected gripper type %s is not a 3FG series gripper. "
+                                       "This hardware interface only supports 3FG series.",
+                                       detected_type.c_str());
+                            return hardware_interface::CallbackReturn::ERROR;
+                        }
+                        
+                        onrobot_type_ = detected_type;
+                    } else {
+                        RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), 
+                                   "Auto-detection confirmed configured type: %s", onrobot_type_.c_str());
+                    }
+                } else {
+                    RCLCPP_WARN(rclcpp::get_logger("ThreeFGHardwareInterface"), 
+                               "Auto-detection failed. Using configured type: %s", onrobot_type_.c_str());
+                }
+            }
+
+            // Now create the actual gripper instance
             if (connection_type_ == "tcp")
             {
                 RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), 
@@ -144,12 +216,6 @@ namespace onrobot_driver
                            device_.c_str(), device_address_);
                 gripper_ = std::make_unique<ThreeFG>(onrobot_type_, device_, device_address_);
             }
-            else
-            {
-                RCLCPP_ERROR(rclcpp::get_logger("ThreeFGHardwareInterface"), 
-                            "Unsupported connection type: %s", connection_type_.c_str());
-                return hardware_interface::CallbackReturn::ERROR;
-            }
 
             float initial_width = gripper_->getWidth();
             if (initial_width < 0) {
@@ -162,7 +228,8 @@ namespace onrobot_driver
             finger_width_command_ = initial_width;
             
             RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), 
-                       "3FG gripper configured. Initial width: %.3f m", finger_width_state_);
+                       "3FG gripper configured. Type: %s, Initial width: %.3f m", 
+                       onrobot_type_.c_str(), finger_width_state_);
         }
         catch (const std::exception &e)
         {

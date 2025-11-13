@@ -82,6 +82,23 @@ void VG::grip()
     setChannelB(MODE_GRIP, DEFAULT_VACUUM);
 }
 
+void VG::gripWithStatus()
+{
+    setChannelA(MODE_GRIP, DEFAULT_VACUUM);
+    setChannelB(MODE_GRIP, DEFAULT_VACUUM);
+    
+    // Wait for vacuum to build up (simple implementation)
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Check if grip was successful
+    float vacuum_a = getChannelAVacuum();
+    float vacuum_b = getChannelBVacuum();
+    
+    if (vacuum_a < 10.0f && vacuum_b < 10.0f) {
+        std::cerr << "Grip may not have been successful. Vacuum levels too low." << std::endl;
+    }
+}
+
 void VG::release()
 {
     // Release both channels
@@ -94,6 +111,16 @@ void VG::idle()
     // Set both channels to idle
     setChannelA(MODE_IDLE, 0);
     setChannelB(MODE_IDLE, 0);
+}
+
+void VG::gripChannelA(uint8_t target_vacuum)
+{
+    setChannelA(MODE_GRIP, target_vacuum);
+}
+
+void VG::gripChannelB(uint8_t target_vacuum)
+{
+    setChannelB(MODE_GRIP, target_vacuum);
 }
 
 void VG::setChannelA(uint8_t control_mode, uint8_t target_vacuum)
@@ -230,4 +257,14 @@ std::vector<int> VG::getStatus()
     }
     
     return status_list;
+}
+
+bool VG::isGripping()
+{
+    float vacuum_a = getChannelAVacuum();
+    float vacuum_b = getChannelBVacuum();
+    
+    // Consider gripping if either channel has significant vacuum
+    float vacuum_threshold = 10.0f; // 10% vacuum threshold
+    return (vacuum_a > vacuum_threshold) || (vacuum_b > vacuum_threshold);
 }

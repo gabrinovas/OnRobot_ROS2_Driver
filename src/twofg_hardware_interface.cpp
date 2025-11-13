@@ -1,4 +1,5 @@
 #include "onrobot_driver/twofg_hardware_interface.hpp"
+#include "onrobot_driver/GripperDetection.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -9,7 +10,8 @@ namespace onrobot_driver
         : finger_width_state_(0.0),
           finger_width_command_(0.0),
           device_address_(65),
-          use_fake_hardware_(false)
+          use_fake_hardware_(false),
+          auto_detect_(false)
     {
     }
 
@@ -19,7 +21,7 @@ namespace onrobot_driver
 
     hardware_interface::CallbackReturn TwoFGHardwareInterface::on_init(const hardware_interface::HardwareInfo &info)
     {
-        info_ = info; // Store the hardware info
+        info_ = info;
         
         // Retrieve the gripper type from the hardware parameters
         if (info.hardware_parameters.find("onrobot_type") != info.hardware_parameters.end())
@@ -88,12 +90,21 @@ namespace onrobot_driver
         if (info.hardware_parameters.find("device_address") != info.hardware_parameters.end())
         {
             device_address_ = std::stoi(info.hardware_parameters.at("device_address"));
+        } else {
+            // Default device address for 2FG series is 65
+            device_address_ = 65;
         }
 
         // Retrieve use_fake_hardware parameter
         if (info.hardware_parameters.find("use_fake_hardware") != info.hardware_parameters.end())
         {
             use_fake_hardware_ = (info.hardware_parameters.at("use_fake_hardware") == "true");
+        }
+
+        // Retrieve auto_detect parameter
+        if (info.hardware_parameters.find("auto_detect") != info.hardware_parameters.end())
+        {
+            auto_detect_ = (info.hardware_parameters.at("auto_detect") == "true");
         }
 
         // Retrieve the prefix from the hardware parameters
@@ -118,12 +129,19 @@ namespace onrobot_driver
             return hardware_interface::CallbackReturn::ERROR;
         }
 
-        // Initialize joint variables
-        finger_width_state_ = 0.035; // Start at half-open
-        finger_width_command_ = 0.035;
+        // Initialize joint variables based on gripper type
+        if (onrobot_type_ == "2fg7") {
+            finger_width_state_ = 0.035; // Start at half-open for 2FG7
+        } else {
+            finger_width_state_ = 0.07; // Start at half-open for 2FG14
+        }
+        finger_width_command_ = finger_width_state_;
         
-        RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), "2FG Hardware Interface initialized for %s (fake hardware: %s)", 
-                   onrobot_type_.c_str(), use_fake_hardware_ ? "true" : "false");
+        RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                   "2FG Hardware Interface initialized for %s (auto_detect: %s, fake hardware: %s)", 
+                   onrobot_type_.c_str(), 
+                   auto_detect_ ? "true" : "false",
+                   use_fake_hardware_ ? "true" : "false");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
@@ -133,14 +151,67 @@ namespace onrobot_driver
         if (use_fake_hardware_)
         {
             RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), "Using fake hardware for 2FG gripper");
-            finger_width_state_ = 0.035; // Start at half-open
-            finger_width_command_ = 0.035;
+            if (onrobot_type_ == "2fg7") {
+                finger_width_state_ = 0.035;
+            } else {
+                finger_width_state_ = 0.07;
+            }
+            finger_width_command_ = finger_width_state_;
             return hardware_interface::CallbackReturn::SUCCESS;
         }
 
         // Create the TwoFG instance for real hardware
         try
         {
+            std::unique_ptr<IModbusConnection> temp_connection;
+            
+            // Create temporary connection for detection
+            if (connection_type_ == "tcp")
+            {
+                temp_connection = std::make_unique<TCPConnectionWrapper>(ip_address_, port_);
+            }
+            else if (connection_type_ == "serial")
+            {
+                temp_connection = std::make_unique<SerialConnectionWrapper>(device_);
+            }
+            else
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                            "Unsupported connection type: %s", connection_type_.c_str());
+                return hardware_interface::CallbackReturn::ERROR;
+            }
+
+            // Auto-detect gripper type if enabled
+            if (auto_detect_) {
+                std::string detected_type = GripperDetection::detectGripperType(temp_connection, device_address_);
+                
+                if (!detected_type.empty()) {
+                    if (detected_type != onrobot_type_) {
+                        RCLCPP_WARN(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                                   "Auto-detected gripper type: %s (configured: %s)", 
+                                   detected_type.c_str(), onrobot_type_.c_str());
+                        
+                        // Check if detected type is compatible with this hardware interface
+                        if (detected_type.find("2fg") == std::string::npos) {
+                            RCLCPP_ERROR(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                                       "Detected gripper type %s is not a 2FG series gripper. "
+                                       "This hardware interface only supports 2FG series.",
+                                       detected_type.c_str());
+                            return hardware_interface::CallbackReturn::ERROR;
+                        }
+                        
+                        onrobot_type_ = detected_type;
+                    } else {
+                        RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                                   "Auto-detection confirmed configured type: %s", onrobot_type_.c_str());
+                    }
+                } else {
+                    RCLCPP_WARN(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                               "Auto-detection failed. Using configured type: %s", onrobot_type_.c_str());
+                }
+            }
+
+            // Now create the actual gripper instance
             if (connection_type_ == "tcp")
             {
                 RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), 
@@ -155,12 +226,6 @@ namespace onrobot_driver
                            device_.c_str(), device_address_);
                 gripper_ = std::make_unique<TwoFG>(onrobot_type_, device_, device_address_);
             }
-            else
-            {
-                RCLCPP_ERROR(rclcpp::get_logger("TwoFGHardwareInterface"), 
-                            "Unsupported connection type: %s", connection_type_.c_str());
-                return hardware_interface::CallbackReturn::ERROR;
-            }
 
             // Test connection by reading initial width
             float initial_width = gripper_->getWidth();
@@ -174,7 +239,8 @@ namespace onrobot_driver
             finger_width_command_ = initial_width;
             
             RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), 
-                       "2FG gripper configured. Initial width: %.3f m", finger_width_state_);
+                       "2FG gripper configured. Type: %s, Initial width: %.3f m", 
+                       onrobot_type_.c_str(), finger_width_state_);
         }
         catch (const std::exception &e)
         {

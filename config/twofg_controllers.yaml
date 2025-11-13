@@ -13,7 +13,7 @@ $(var ns):
     ros__parameters:
       joints:
         - $(var prefix)finger_width
-      # Add gripper-specific parameters
+      # 2FG-specific parameters from documentation
       state_publish_rate: 50.0
       action_monitor_rate: 10.0
       allow_partial_joints_goal: true
@@ -23,3 +23,9 @@ $(var ns):
         finger_width:
           goal: 0.001
           trajectory: 0.001
+      # 2FG7 specific parameters
+      max_width: 0.07     # 70mm for 2FG7
+      min_width: 0.035    # 35mm for 2FG7
+      default_force: 35.0 # 50% of 70N max force
+      default_speed: 50.0 # 50% speed
+      grip_type: "external" # external or internal

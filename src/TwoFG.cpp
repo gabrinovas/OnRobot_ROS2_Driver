@@ -8,6 +8,16 @@ TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int devic
     if (type != "2fg7" && type != "2fg14")
         throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
 
+    // Set specifications based on type
+    if (type == "2fg7") {
+        MAX_WIDTH = 0.07f;   // 70mm for 2FG7
+        MAX_FORCE = 70.0f;   // 70N for 2FG7
+    } else { // 2fg14
+        MAX_WIDTH = 0.14f;   // 140mm for 2FG14  
+        MAX_FORCE = 70.0f;   // 70N for 2FG14
+    }
+    MIN_WIDTH = 0.0f;
+
     // Attempt to establish TCP connection, retrying until successful
     while (true) {
         try {
@@ -36,6 +46,16 @@ TwoFG::TwoFG(const std::string &type, const std::string &device, int device_addr
         throw std::invalid_argument("Please provide a serial device for connection.");
     if (type != "2fg7" && type != "2fg14")
         throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
+
+    // Set specifications based on type
+    if (type == "2fg7") {
+        MAX_WIDTH = 0.07f;   // 70mm for 2FG7
+        MAX_FORCE = 70.0f;   // 70N for 2FG7
+    } else { // 2fg14
+        MAX_WIDTH = 0.14f;   // 140mm for 2FG14  
+        MAX_FORCE = 70.0f;   // 70N for 2FG14
+    }
+    MIN_WIDTH = 0.0f;
 
     // Attempt to establish Serial connection, retrying until successful
     while (true) {
@@ -92,10 +112,17 @@ void TwoFG::moveGripper(float width_val, bool external_grip)
     // Clamp width to valid range
     float clamped_width = std::max(MIN_WIDTH, std::min(width_val, MAX_WIDTH));
     
+    // Check if gripper is busy before sending command
+    uint16_t status = getStatusRaw();
+    if (status & STATUS_BUSY) {
+        std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
+        return;
+    }
+    
     // Set target width
     setTargetWidth(clamped_width);
     
-    // Execute grip command
+    // Execute appropriate grip command
     if (external_grip) {
         gripExternal();
     } else {
@@ -230,10 +257,48 @@ uint16_t TwoFG::getStatusRaw()
 
 float TwoFG::getMinWidth()
 {
-    return MIN_WIDTH;
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_MIN_EXTERNAL_WIDTH, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return fromTenthMM(regValue);
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read minimum width." << std::endl;
+        return MIN_WIDTH;
+    }
 }
 
 float TwoFG::getMaxWidth()
 {
-    return MAX_WIDTH;
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_MAX_EXTERNAL_WIDTH, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return fromTenthMM(regValue);
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read maximum width." << std::endl;
+        return MAX_WIDTH;
+    }
+}
+
+float TwoFG::getCurrentForce()
+{
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_FORCE, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return static_cast<float>(regValue); // Force in N
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read current force." << std::endl;
+        return -1.0f;
+    }
 }
