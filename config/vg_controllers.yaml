@@ -1,0 +1,34 @@
+$(var ns):
+  controller_manager:
+    ros__parameters:
+      update_rate: 50
+
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
+
+      # For VG grippers, we use a simple position controller that maps:
+      # 0.0 = released, 1.0 = gripped
+      gripper_controller:
+        type: position_controllers/JointGroupPositionController
+
+  gripper_controller:
+    ros__parameters:
+      joints:
+        - $(var prefix)gripper
+      # VG-specific parameters
+      state_publish_rate: 50.0
+      action_monitor_rate: 10.0
+      allow_partial_joints_goal: true
+      constraints:
+        goal_time: 2.0
+        stopped_velocity_tolerance: 0.1
+        gripper:
+          goal: 0.1
+          trajectory: 0.1
+      # VG gripper specific parameters
+      channel_a_vacuum: 40  # 40% vacuum level for channel A
+      channel_b_vacuum: 40  # 40% vacuum level for channel B  
+      current_limit: 500    # 500mA current limit
+      use_channel_a: true   # Enable channel A
+      use_channel_b: false  # Disable channel B by default
+      grip_timeout: 3.0     # 3 second timeout for grip operation

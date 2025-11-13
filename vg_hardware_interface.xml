@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<library path="onrobot_vg_driver_plugin">
+  <class name="onrobot_driver/VGHardwareInterface"
+         type="onrobot_driver::VGHardwareInterface"
+         base_class_type="hardware_interface::ActuatorInterface">
+    <description>
+        ROS 2 Control hardware interface for the OnRobot VG vacuum gripper series (VG10/VGC10).
+    </description>
+  </class>
+</library>

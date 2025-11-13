@@ -1,0 +1,38 @@
+$(var ns):
+  controller_manager:
+    ros__parameters:
+      update_rate: 50
+
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
+
+      # Basic position controller for compatibility
+      gripper_controller:
+        type: position_controllers/JointGroupPositionController
+
+      # Optional: Service-based controller for advanced VG control
+      vg_service_controller:
+        type: onrobot_driver/VGServiceController
+
+  gripper_controller:
+    ros__parameters:
+      joints:
+        - $(var prefix)gripper
+      state_publish_rate: 50.0
+      action_monitor_rate: 10.0
+      allow_partial_joints_goal: true
+      constraints:
+        goal_time: 2.0
+        stopped_velocity_tolerance: 0.1
+
+  vg_service_controller:
+    ros__parameters:
+      # Service names
+      grip_service: "~/grip"
+      release_service: "~/release" 
+      idle_service: "~/idle"
+      set_vacuum_service: "~/set_vacuum"
+      # Default parameters
+      default_vacuum_a: 40
+      default_vacuum_b: 40
+      current_limit: 500
