@@ -41,6 +41,8 @@
   <export>
     <build_type>ament_cmake</build_type>
     <hardware_interface plugin="${prefix}/rg_hardware_interface.xml"/>
-    <hardware_interface plugin="${prefix}/fg_hardware_interface.xml"/>
+    <hardware_interface plugin="${prefix}/twofg_hardware_interface.xml"/>
+    <hardware_interface plugin="${prefix}/threefg_hardware_interface.xml"/>
+    <hardware_interface plugin="${prefix}/vg_hardware_interface.xml"/>
   </export>
 </package>

@@ -10,10 +10,12 @@ public:
     SerialConnectionWrapper(const std::string &device)
     : connection(device) {
         connection.connect();
-        connection.setTwoStopBits(false); // Use one stop bit
-        connection.setEvenParity();
-        connection.setBaudRate(115200);
-        connection.setTimeout(1000);
+        // Set Modbus RTU settings according to OnRobot documentation
+        connection.setOneStopBit();        // 1 stop bit (documentation specifies 1 stop bit)
+        connection.setEvenParity();        // Even parity (documentation specifies even parity)
+        connection.setBaudRate(1000000);   // 1,000,000 baud rate (from documentation page 7)
+        connection.setDataBits(8);         // 8 data bits (documentation specifies 8 data bits)
+        connection.setTimeout(1000);       // 1 second timeout
     }
 
     MB::ModbusResponse sendRequest(const MB::ModbusRequest &req) override {
@@ -29,7 +31,8 @@ public:
     }
 
     void close() override {
-        // Do nothing at the moment. Can explicitly close the connection if needed.
+        // Close the serial connection
+        connection.close();
     }
 
 private:
