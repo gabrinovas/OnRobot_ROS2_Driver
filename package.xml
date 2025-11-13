@@ -2,15 +2,12 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>onrobot_driver</name>
-  <version>0.0.1</version>
+  <version>0.0.2</version>
   <description>ROS2 driver for OnRobot grippers</description>
   <maintainer email="tonyle98@outlook.com">Tony Le</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
 
   <depend>controller_manager</depend>
   <depend>controller_manager_msgs</depend>
@@ -20,10 +17,10 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_lifecycle</depend>
   <depend>rclpy</depend>
-  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>tf2_geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
   <depend>onrobot_description</depend>
 
   <exec_depend>joint_state_broadcaster</exec_depend>
@@ -38,6 +35,9 @@
   <exec_depend>rviz2</exec_depend>
   <exec_depend>urdf</exec_depend>
   <exec_depend>xacro</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

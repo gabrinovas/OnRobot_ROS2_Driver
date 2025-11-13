@@ -1,6 +1,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
+#include <sensor_msgs/msg/JointState.hpp>
 #include <onrobot_driver/TwoFG.hpp>
 #include <onrobot_driver/ThreeFG.hpp>
 #include <onrobot_driver/VG.hpp>
@@ -227,16 +227,10 @@ private:
         std::string detailed_str = "2FG " + onrobot_type_ + " Detailed Status:\n";
         
         // Basic status
-        if (status[0]) {
-            status_str += "BUSY, ";
-        } else {
-            status_str += "READY, ";
-        }
+        if (status[0]) status_str += "BUSY, ";
+        else          status_str += "READY, ";
         
-        if (status[1]) {
-            status_str += "GRIP_DETECTED, ";
-        }
-        
+        if (status[1]) status_str += "GRIP_DETECTED, ";
         status_str += "Width: " + std::to_string(width * 1000) + "mm";
         
         // Detailed status
@@ -266,20 +260,10 @@ private:
         std::string detailed_str = "3FG " + onrobot_type_ + " Detailed Status:\n";
         
         // Basic status
-        if (status[0]) {
-            status_str += "BUSY, ";
-        } else {
-            status_str += "READY, ";
-        }
-        
-        if (status[1]) {
-            status_str += "GRIP_DETECTED, ";
-        }
-        
-        if (status[2]) {
-            status_str += "FORCE_GRIP, ";
-        }
-        
+        if (status[0]) status_str += "BUSY, ";
+        else          status_str += "READY, ";
+        if (status[1]) status_str += "GRIP_DETECTED, ";
+        if (status[2]) status_str += "FORCE_GRIP, ";
         status_str += "Diameter: " + std::to_string(width * 1000) + "mm";
         
         // Detailed status
@@ -290,14 +274,10 @@ private:
         detailed_str += "Force Grip Detected: " + std::string(status[2] ? "YES" : "NO") + "\n";
         detailed_str += "Calibration OK: " + std::string(status[3] ? "YES" : "NO") + "\n";
         
-        // Add status interpretation
-        if (status[0]) {
-            detailed_str += "Status: Gripper is moving\n";
-        } else if (status[1]) {
-            detailed_str += "Status: Object gripped\n";
-        } else {
-            detailed_str += "Status: Ready\n";
-        }
+        // Additional status information
+        if (status[0]) detailed_str += "Status: Gripper is moving\n";
+        else if (status[1]) detailed_str += "Status: Object gripped\n";
+        else detailed_str += "Status: Ready\n";
         
         status_msg.data = status_str;
         detailed_msg.data = detailed_str;
@@ -312,13 +292,8 @@ private:
         std::string status_str = "VG " + onrobot_type_ + " - ";
         std::string detailed_str = "VG " + onrobot_type_ + " Detailed Status:\n";
         
-        // Basic status
-        if (is_gripping) {
-            status_str += "GRIPPING, ";
-        } else {
-            status_str += "RELEASED, ";
-        }
-        
+        if (is_gripping) status_str += "GRIPPING, ";
+        else            status_str += "RELEASED, ";
         status_str += "Vacuum A: " + std::to_string(vacuum_a) + "%, ";
         status_str += "Vacuum B: " + std::to_string(vacuum_b) + "%";
         
@@ -333,27 +308,18 @@ private:
         // Add grip quality information
         if (is_gripping) {
             float max_vacuum = std::max(vacuum_a, vacuum_b);
-            if (max_vacuum > 50.0f) {
-                detailed_str += "Grip Quality: EXCELLENT\n";
-            } else if (max_vacuum > 20.0f) {
-                detailed_str += "Grip Quality: GOOD\n";
-            } else {
-                detailed_str += "Grip Quality: WEAK - Check workpiece\n";
-            }
+            if (max_vacuum > 50.0f)      detailed_str += "Grip Quality: EXCELLENT\n";
+            else if (max_vacuum > 20.0f) detailed_str += "Grip Quality: GOOD\n";
+            else                         detailed_str += "Grip Quality: WEAK - Check workpiece\n";
         } else {
             detailed_str += "Grip Quality: NOT GRIPPING\n";
         }
         
         // Add channel usage info
-        if (status[0] && status[1]) {
-            detailed_str += "Channels: Both active\n";
-        } else if (status[0]) {
-            detailed_str += "Channels: Only A active\n";
-        } else if (status[1]) {
-            detailed_str += "Channels: Only B active\n";
-        } else {
-            detailed_str += "Channels: None active\n";
-        }
+        if (status[0] && status[1])      detailed_str += "Channels: Both active\n";
+        else if (status[0])              detailed_str += "Channels: Only A active\n";
+        else if (status[1])              detailed_str += "Channels: Only B active\n";
+        else                             detailed_str += "Channels: None active\n";
         
         status_msg.data = status_str;
         detailed_msg.data = detailed_str;
@@ -367,16 +333,9 @@ private:
         std::string detailed_str = "RG " + onrobot_type_ + " Detailed Status:\n";
         
         // Basic status
-        if (status[0]) {
-            status_str += "BUSY, ";
-        } else {
-            status_str += "READY, ";
-        }
-        
-        if (status[1]) {
-            status_str += "GRIP_DETECTED, ";
-        }
-        
+        if (status[0]) status_str += "BUSY, ";
+        else          status_str += "READY, ";
+        if (status[1]) status_str += "GRIP_DETECTED, ";
         status_str += "Width: " + std::to_string(width * 1000) + "mm";
         
         // Detailed status
@@ -390,13 +349,8 @@ private:
         detailed_str += "Safety Circuit 2: " + std::string(status[5] ? "ACTIVATED" : "OK") + "\n";
         detailed_str += "Safety Error: " + std::string(status[6] ? "YES" : "NO") + "\n";
         
-        // Add safety warnings
-        if (status[3] || status[5]) {
-            detailed_str += "ALERT: Safety circuits activated - gripper cannot move!\n";
-        }
-        if (status[6]) {
-            detailed_str += "ALERT: Safety error detected!\n";
-        }
+        if (status[3] || status[5]) detailed_str += "ALERT: Safety circuits activated - gripper cannot move!\n";
+        if (status[6])              detailed_str += "ALERT: Safety error detected!\n";
         
         status_msg.data = status_str;
         detailed_msg.data = detailed_str;
@@ -408,41 +362,23 @@ private:
         
         if (onrobot_type_.find("2fg") != std::string::npos) {
             status_msg.data = "2FG " + onrobot_type_ + " [FAKE] - READY, Width: 52.5mm";
-            detailed_msg.data = "2FG " + onrobot_type_ + " Fake Detailed Status:\n" +
-                               "Width: 52.5 mm\nBusy: NO\n" +
-                               "Grip Detected: NO\nCalibration Error: NO\nSensor Error: NO\n" +
-                               "Auto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\n" +
-                               "Cycle Count: " + std::to_string(counter);
+            detailed_msg.data = "2FG " + onrobot_type_ + " Fake Detailed Status:\nWidth: 52.5 mm\nBusy: NO\nGrip Detected: NO\nCalibration Error: NO\nSensor Error: NO\nAuto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\nCycle Count: " + std::to_string(counter);
         }
         else if (onrobot_type_.find("3fg") != std::string::npos) {
             status_msg.data = "3FG " + onrobot_type_ + " [FAKE] - READY, Diameter: 75.0mm";
-            detailed_msg.data = "3FG " + onrobot_type_ + " Fake Detailed Status:\n" +
-                               "Diameter: 75.0 mm\nBusy: NO\n" +
-                               "Grip Detected: NO\nForce Grip Detected: NO\nCalibration OK: YES\n" +
-                               "Auto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\n" +
-                               "Cycle Count: " + std::to_string(counter);
+            detailed_msg.data = "3FG " + onrobot_type_ + " Fake Detailed Status:\nDiameter: 75.0 mm\nBusy: NO\nGrip Detected: NO\nForce Grip Detected: NO\nCalibration OK: YES\nAuto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\nCycle Count: " + std::to_string(counter);
         }
         else if (onrobot_type_.find("vg") != std::string::npos) {
             status_msg.data = "VG " + onrobot_type_ + " [FAKE] - RELEASED, Vacuum A: 0.0%, Vacuum B: 0.0%";
-            detailed_msg.data = "VG " + onrobot_type_ + " Fake Detailed Status:\n" +
-                               "Channel A Vacuum: 0.0 %\nChannel B Vacuum: 0.0 %\n" +
-                               "Gripping: NO\nChannel A Active: NO\nChannel B Active: NO\n" +
-                               "Auto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\n" +
-                               "Cycle Count: " + std::to_string(counter);
+            detailed_msg.data = "VG " + onrobot_type_ + " Fake Detailed Status:\nChannel A Vacuum: 0.0 %\nChannel B Vacuum: 0.0 %\nGripping: NO\nChannel A Active: NO\nChannel B Active: NO\nAuto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\nCycle Count: " + std::to_string(counter);
         }
         else if (onrobot_type_.find("rg") != std::string::npos) {
             status_msg.data = "RG " + onrobot_type_ + " [FAKE] - READY, Width: 55.0mm";
-            detailed_msg.data = "RG " + onrobot_type_ + " Fake Detailed Status:\n" +
-                               "Width: 55.0 mm\nBusy: NO\n" +
-                               "Grip Detected: NO\nSafety Circuits: OK\n" +
-                               "Auto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\n" +
-                               "Cycle Count: " + std::to_string(counter);
+            detailed_msg.data = "RG " + onrobot_type_ + " Fake Detailed Status:\nWidth: 55.0 mm\nBusy: NO\nGrip Detected: NO\nSafety Circuits: OK\nAuto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\nCycle Count: " + std::to_string(counter);
         }
         else {
             status_msg.data = "Unknown gripper type: " + onrobot_type_ + " [FAKE]";
-            detailed_msg.data = "Fake data for unknown gripper type\n" +
-                               "Auto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\n" +
-                               "Cycle Count: " + std::to_string(counter);
+            detailed_msg.data = "Fake data for unknown gripper type\nAuto-detection: " + std::string(auto_detect_ ? "ENABLED" : "DISABLED") + "\nCycle Count: " + std::to_string(counter);
         }
     }
 

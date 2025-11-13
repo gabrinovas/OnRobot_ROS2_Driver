@@ -17,6 +17,7 @@ find_package(rclpy REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 # Include directories
 include_directories(
@@ -24,7 +25,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver
 )
 
-# List of dependencies
+# List of dependencies (para los plugins de hardware)
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   controller_manager
   controller_manager_msgs
@@ -191,13 +192,11 @@ install(
   DESTINATION include
 )
 
-# Install launch and config files
 install(
   DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Install the plugin description files
 install(
   FILES
     rg_hardware_interface.xml
@@ -223,10 +222,11 @@ ament_export_dependencies(
   rclcpp
   rclcpp_lifecycle
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
+  sensor_msgs
 )
 
 # =============================================================================
-# Export hardware plugins (pluginlib registration)
+# Export hardware plugins
 # =============================================================================
 pluginlib_export_plugin_description_file(hardware_interface twofg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
@@ -234,7 +234,7 @@ pluginlib_export_plugin_description_file(hardware_interface threefg_hardware_int
 pluginlib_export_plugin_description_file(hardware_interface vg_hardware_interface.xml)
 
 # =============================================================================
-# Testing (optional)
+# Testing
 # =============================================================================
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
