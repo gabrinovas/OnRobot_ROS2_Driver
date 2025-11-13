@@ -2,7 +2,7 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-namespace twofg_hardware_interface
+namespace onrobot_driver
 {
 
     TwoFGHardwareInterface::TwoFGHardwareInterface()
@@ -305,7 +305,7 @@ namespace twofg_hardware_interface
         return hardware_interface::return_type::OK;
     }
 
-} // namespace twofg_hardware_interface
+} // namespace onrobot_driver
 
 // Export the hardware interface as a plugin for ros2_control
-PLUGINLIB_EXPORT_CLASS(twofg_hardware_interface::TwoFGHardwareInterface, hardware_interface::ActuatorInterface)
+PLUGINLIB_EXPORT_CLASS(onrobot_driver::TwoFGHardwareInterface, hardware_interface::ActuatorInterface)
