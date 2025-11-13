@@ -103,7 +103,9 @@ void ThreeFG::moveGripper(float width_val, bool external_grip)
     uint16_t status = getStatusRaw();
     if (status & STATUS_BUSY) {
         std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
-        return;
+        if (!waitUntilReady(5000)) {
+            throw std::runtime_error("Gripper busy timeout");
+        }
     }
     
     setTargetWidth(clamped_width);
@@ -119,7 +121,9 @@ void ThreeFG::flexibleGrip(float width_val)
     uint16_t status = getStatusRaw();
     if (status & STATUS_BUSY) {
         std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
-        return;
+        if (!waitUntilReady(5000)) {
+            throw std::runtime_error("Gripper busy timeout");
+        }
     }
     
     setTargetWidth(clamped_width);
@@ -236,6 +240,24 @@ std::vector<int> ThreeFG::getStatus()
     return status_list;
 }
 
+std::vector<std::string> ThreeFG::getDetailedStatus()
+{
+    auto status_list = getStatus();
+    std::vector<std::string> messages;
+    
+    if (status_list[0] == 1) messages.push_back("Busy - motion ongoing");
+    if (status_list[1] == 1) messages.push_back("Grip detected");
+    if (status_list[2] == 1) messages.push_back("Force grip detected");
+    if (status_list[3] == 1) messages.push_back("Calibration OK");
+    else messages.push_back("Calibration required");
+    
+    if (messages.empty()) {
+        messages.push_back("Ready");
+    }
+    
+    return messages;
+}
+
 uint16_t ThreeFG::getStatusRaw()
 {
     MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_STATUS, 1);
@@ -346,5 +368,24 @@ void ThreeFG::setFingertipOffset(float offset_mm)
     {
         std::cerr << "Failed to set fingertip offset." << std::endl;
         throw;
+    }
+}
+
+bool ThreeFG::waitUntilReady(int timeout_ms)
+{
+    auto start = std::chrono::steady_clock::now();
+    while (true) {
+        uint16_t status = getStatusRaw();
+        if (!(status & STATUS_BUSY)) {
+            return true;
+        }
+        
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+        if (elapsed.count() > timeout_ms) {
+            return false;
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 }

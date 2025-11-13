@@ -131,9 +131,9 @@ namespace onrobot_driver
 
         // Initialize joint variables based on gripper type
         if (onrobot_type_ == "2fg7") {
-            finger_width_state_ = 0.035; // Start at half-open for 2FG7
+            finger_width_state_ = 0.0525; // Start at 75% open for 2FG7 (35-70mm range)
         } else {
-            finger_width_state_ = 0.07; // Start at half-open for 2FG14
+            finger_width_state_ = 0.105; // Start at 75% open for 2FG14 (70-140mm range)
         }
         finger_width_command_ = finger_width_state_;
         
@@ -152,9 +152,9 @@ namespace onrobot_driver
         {
             RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), "Using fake hardware for 2FG gripper");
             if (onrobot_type_ == "2fg7") {
-                finger_width_state_ = 0.035;
+                finger_width_state_ = 0.0525;
             } else {
-                finger_width_state_ = 0.07;
+                finger_width_state_ = 0.105;
             }
             finger_width_command_ = finger_width_state_;
             return hardware_interface::CallbackReturn::SUCCESS;
@@ -354,17 +354,25 @@ namespace onrobot_driver
             return hardware_interface::return_type::ERROR;
         }
         
-        // Only send command if it has changed significantly
+        // Only send command if it has changed significantly and gripper is ready
         if (std::abs(finger_width_command_ - finger_width_state_) > 0.001)
         {
             try
             {
-                gripper_->moveGripper(finger_width_command_);
-                RCLCPP_DEBUG(rclcpp::get_logger("TwoFGHardwareInterface"), "Commanded gripper to width: %.3f m", finger_width_command_);
+                // Check if gripper is ready before sending command
+                if (gripper_->waitUntilReady(100)) { // 100ms timeout
+                    gripper_->moveGripper(finger_width_command_);
+                    RCLCPP_DEBUG(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                               "Commanded gripper to width: %.3f m", finger_width_command_);
+                } else {
+                    RCLCPP_WARN(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                              "Gripper busy, skipping command");
+                }
             }
             catch (const std::exception &e)
             {
-                RCLCPP_ERROR(rclcpp::get_logger("TwoFGHardwareInterface"), "Failed to write command to gripper: %s", e.what());
+                RCLCPP_ERROR(rclcpp::get_logger("TwoFGHardwareInterface"), 
+                           "Failed to write command to gripper: %s", e.what());
                 return hardware_interface::return_type::ERROR;
             }
         }

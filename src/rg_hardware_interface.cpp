@@ -331,15 +331,27 @@ namespace rg_hardware_interface
             RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Gripper not initialised");
             return hardware_interface::return_type::ERROR;
         }
-        try
+        
+        // Only send command if it has changed significantly and gripper is ready
+        if (std::abs(finger_width_command_ - finger_width_state_) > 0.001)
         {
-            gripper_->moveGripper(finger_width_command_);
-            RCLCPP_DEBUG(rclcpp::get_logger("RGHardwareInterface"), "Commanded gripper to width: %.3f m", finger_width_command_);
-        }
-        catch (const std::exception &e)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Failed to write command to gripper: %s", e.what());
-            return hardware_interface::return_type::ERROR;
+            try
+            {
+                // Check if gripper is ready before sending command
+                if (gripper_->waitUntilReady(100)) { // 100ms timeout
+                    gripper_->moveGripper(finger_width_command_);
+                    RCLCPP_DEBUG(rclcpp::get_logger("RGHardwareInterface"), 
+                               "Commanded gripper to width: %.3f m", finger_width_command_);
+                } else {
+                    RCLCPP_WARN(rclcpp::get_logger("RGHardwareInterface"), 
+                              "Gripper busy, skipping command");
+                }
+            }
+            catch (const std::exception &e)
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("RGHardwareInterface"), "Failed to write command to gripper: %s", e.what());
+                return hardware_interface::return_type::ERROR;
+            }
         }
         return hardware_interface::return_type::OK;
     }

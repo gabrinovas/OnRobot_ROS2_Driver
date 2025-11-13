@@ -12,11 +12,12 @@ TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int devic
     if (type == "2fg7") {
         MAX_WIDTH = 0.07f;   // 70mm for 2FG7
         MAX_FORCE = 70.0f;   // 70N for 2FG7
+        MIN_WIDTH = 0.035f;  // 35mm minimum for 2FG7
     } else { // 2fg14
         MAX_WIDTH = 0.14f;   // 140mm for 2FG14  
         MAX_FORCE = 70.0f;   // 70N for 2FG14
+        MIN_WIDTH = 0.07f;   // 70mm minimum for 2FG14
     }
-    MIN_WIDTH = 0.0f;
 
     // Attempt to establish TCP connection, retrying until successful
     while (true) {
@@ -51,11 +52,12 @@ TwoFG::TwoFG(const std::string &type, const std::string &device, int device_addr
     if (type == "2fg7") {
         MAX_WIDTH = 0.07f;   // 70mm for 2FG7
         MAX_FORCE = 70.0f;   // 70N for 2FG7
+        MIN_WIDTH = 0.035f;  // 35mm minimum for 2FG7
     } else { // 2fg14
         MAX_WIDTH = 0.14f;   // 140mm for 2FG14  
         MAX_FORCE = 70.0f;   // 70N for 2FG14
+        MIN_WIDTH = 0.07f;   // 70mm minimum for 2FG14
     }
-    MIN_WIDTH = 0.0f;
 
     // Attempt to establish Serial connection, retrying until successful
     while (true) {
@@ -116,7 +118,10 @@ void TwoFG::moveGripper(float width_val, bool external_grip)
     uint16_t status = getStatusRaw();
     if (status & STATUS_BUSY) {
         std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
-        return;
+        // Wait for gripper to be ready
+        if (!waitUntilReady(5000)) { // 5 second timeout
+            throw std::runtime_error("Gripper busy timeout");
+        }
     }
     
     // Set target width
@@ -196,7 +201,7 @@ void TwoFG::setTargetWidth(float width_val)
 
 void TwoFG::setTargetSpeed(float speed_val)
 {
-    // Clamp speed to valid range (10-100%)
+    // Clamp speed to valid range (10-100%) as per documentation
     float clamped_speed = std::max(10.0f, std::min(speed_val, 100.0f));
     std::vector<MB::ModbusCell> values = {MB::ModbusCell(static_cast<uint16_t>(clamped_speed))};
     MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_SPEED, 1, values);
@@ -255,6 +260,23 @@ uint16_t TwoFG::getStatusRaw()
     }
 }
 
+std::vector<std::string> TwoFG::getDetailedStatus()
+{
+    auto status_list = getStatus();
+    std::vector<std::string> messages;
+    
+    if (status_list[0] == 1) messages.push_back("Busy - motion ongoing");
+    if (status_list[1] == 1) messages.push_back("Grip detected");
+    if (status_list[2] == 1) messages.push_back("Error: Not calibrated");
+    if (status_list[3] == 1) messages.push_back("Error: Linear sensor fault");
+    
+    if (messages.empty()) {
+        messages.push_back("Ready");
+    }
+    
+    return messages;
+}
+
 float TwoFG::getMinWidth()
 {
     MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_MIN_EXTERNAL_WIDTH, 1);
@@ -300,5 +322,24 @@ float TwoFG::getCurrentForce()
     {
         std::cerr << "Failed to read current force." << std::endl;
         return -1.0f;
+    }
+}
+
+bool TwoFG::waitUntilReady(int timeout_ms)
+{
+    auto start = std::chrono::steady_clock::now();
+    while (true) {
+        uint16_t status = getStatusRaw();
+        if (!(status & STATUS_BUSY)) {
+            return true;
+        }
+        
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+        if (elapsed.count() > timeout_ms) {
+            return false;
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 }

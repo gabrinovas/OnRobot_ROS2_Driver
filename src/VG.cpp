@@ -201,10 +201,9 @@ float VG::getChannelAVacuum()
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
         
-        // Convert from 1/1000 of relative vacuum to percentage
-        // Documentation says: "provided in 1/1000 of relative vacuum"
-        // Assuming full scale is 100% = 1000 units
-        float vacuum_percent = static_cast<float>(regValue) / 10.0f;
+        // Documentation: "provided in 1/1000 of relative vacuum"
+        // Assuming 100% vacuum = 1000 units, convert to percentage
+        float vacuum_percent = (static_cast<float>(regValue) / 1000.0f) * 100.0f;
         
         return vacuum_percent;
     }
@@ -224,7 +223,7 @@ float VG::getChannelBVacuum()
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
         
         // Convert from 1/1000 of relative vacuum to percentage
-        float vacuum_percent = static_cast<float>(regValue) / 10.0f;
+        float vacuum_percent = (static_cast<float>(regValue) / 1000.0f) * 100.0f;
         
         return vacuum_percent;
     }
@@ -259,6 +258,26 @@ std::vector<int> VG::getStatus()
     return status_list;
 }
 
+std::vector<std::string> VG::getDetailedStatus()
+{
+    auto status_list = getStatus();
+    std::vector<std::string> messages;
+    
+    float vacuum_a = getChannelAVacuum();
+    float vacuum_b = getChannelBVacuum();
+    
+    messages.push_back("Channel A vacuum: " + std::to_string(vacuum_a) + "%");
+    messages.push_back("Channel B vacuum: " + std::to_string(vacuum_b) + "%");
+    
+    if (status_list[0] == 1) messages.push_back("Channel A: Gripping");
+    else messages.push_back("Channel A: Released");
+    
+    if (status_list[1] == 1) messages.push_back("Channel B: Gripping");
+    else messages.push_back("Channel B: Released");
+    
+    return messages;
+}
+
 bool VG::isGripping()
 {
     float vacuum_a = getChannelAVacuum();
@@ -267,4 +286,22 @@ bool VG::isGripping()
     // Consider gripping if either channel has significant vacuum
     float vacuum_threshold = 10.0f; // 10% vacuum threshold
     return (vacuum_a > vacuum_threshold) || (vacuum_b > vacuum_threshold);
+}
+
+bool VG::waitForGrip(int timeout_ms)
+{
+    auto start = std::chrono::steady_clock::now();
+    while (true) {
+        if (isGripping()) {
+            return true;
+        }
+        
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+        if (elapsed.count() > timeout_ms) {
+            return false;
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 }

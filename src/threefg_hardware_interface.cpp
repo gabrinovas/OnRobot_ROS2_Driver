@@ -345,8 +345,14 @@ namespace onrobot_driver
         {
             try
             {
-                gripper_->moveGripper(finger_width_command_);
-                RCLCPP_DEBUG(rclcpp::get_logger("ThreeFGHardwareInterface"), "Commanded gripper to width: %.3f m", finger_width_command_);
+                // Check if gripper is ready before sending command
+                if (gripper_->waitUntilReady(100)) { // 100ms timeout
+                    gripper_->moveGripper(finger_width_command_);
+                    RCLCPP_DEBUG(rclcpp::get_logger("ThreeFGHardwareInterface"), "Commanded gripper to width: %.3f m", finger_width_command_);
+                } else {
+                    RCLCPP_WARN(rclcpp::get_logger("ThreeFGHardwareInterface"), 
+                              "Gripper busy, skipping command");
+                }
             }
             catch (const std::exception &e)
             {

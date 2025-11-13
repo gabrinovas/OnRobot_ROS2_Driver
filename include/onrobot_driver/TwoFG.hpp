@@ -26,6 +26,7 @@ public:
     // Read commands
     float getWidth();
     std::vector<int> getStatus();
+    std::vector<std::string> getDetailedStatus();
     uint16_t getStatusRaw();
     
     // Write commands
@@ -44,6 +45,7 @@ public:
     float getMinWidth();
     float getMaxWidth();
     float getCurrentForce();
+    bool waitUntilReady(int timeout_ms = 5000);
 
 private:
     std::unique_ptr<IModbusConnection> connection;

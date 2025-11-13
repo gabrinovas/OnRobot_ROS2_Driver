@@ -121,16 +121,27 @@ void RG::moveGripper(float width_val)
     float clamped_width = std::max(min_width, std::min(width_val, max_width));
     
     // Check if gripper is busy before sending command
-    uint16_t status = getStatus()[0];
-    if (status & STATUS_BUSY) {
+    auto status = getStatus();
+    if (status[0]) { // Busy bit
         std::cerr << "Gripper is busy, cannot accept new command" << std::endl;
-        return;
+        // Wait for gripper to be ready (optional)
+        int max_wait = 50; // 5 seconds at 100ms intervals
+        while (status[0] && max_wait-- > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            status = getStatus();
+        }
+        if (status[0]) {
+            throw std::runtime_error("Gripper busy timeout");
+        }
     }
     
     // First stop any ongoing motion.
     setControlMode(CMD_STOP);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
     // Then set the target width
     setTargetWidth(clamped_width);
+    
     // Finally, execute the motion command.
     setControlMode(CMD_GRIP_WITH_OFFSET);
 }
@@ -144,8 +155,8 @@ void RG::openGripper()
 
 void RG::closeGripper()
 {
-    // Close gripper: target width is 0.
-    std::cout << "Closing gripper to min width: 0" << std::endl;
+    // Close gripper: target width is min_width.
+    std::cout << "Closing gripper to min width: " << min_width << std::endl;
     moveGripper(min_width);
 }
 
@@ -161,14 +172,16 @@ void RG::setControlMode(uint16_t command)
     catch (const MB::ModbusException &)
     {
         std::cerr << "Failed to set control mode." << std::endl;
+        throw;
     }
 }
 
 void RG::setTargetForce(float force_val)
 {
-    // Clamp force to valid range
+    // Clamp force to valid range and convert to 1/10 N (documentation specifies 1/10 N units)
     float clamped_force = std::max(0.0f, std::min(force_val, max_force));
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(clamped_force*10.0f))};
+    uint16_t force_reg = static_cast<uint16_t>(clamped_force * 10.0f); // Convert to 1/10 N
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell(force_reg)};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_FORCE, 1, values);
     try
     {
@@ -177,14 +190,16 @@ void RG::setTargetForce(float force_val)
     catch (const MB::ModbusException &)
     {
         std::cerr << "Failed to set target force." << std::endl;
+        throw;
     }
 }
 
 void RG::setTargetWidth(float width_val)
 {
-    // Clamp width to valid range
+    // Clamp width to valid range and convert to 1/10 mm
     float clamped_width = std::max(min_width, std::min(width_val, max_width));
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(clamped_width*10000.0f))};
+    uint16_t width_reg = toTenthMM(clamped_width);
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell(width_reg)};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_WIDTH, 1, values);
     try
     {
@@ -193,21 +208,24 @@ void RG::setTargetWidth(float width_val)
     catch (const MB::ModbusException &)
     {
         std::cerr << "Failed to set target width." << std::endl;
+        throw;
     }
 }
 
 void RG::setFingertipOffset(float offset_val)
 {
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell((uint16_t)(offset_val*10000.0f))};
+    uint16_t offset_reg = toTenthMM(offset_val);
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell(offset_reg)};
     MB::ModbusRequest req(DEVICE_ID, MB::utils::WriteMultipleAnalogOutputHoldingRegisters, REG_SET_FINGERTIP_OFFSET, 1, values);
     try
     {
         sendRequest(req);
-        std::cout << "Fingertip offset set to " << offset_val << std::endl;
+        std::cout << "Fingertip offset set to " << offset_val << " m (" << offset_val * 1000.0f << " mm)" << std::endl;
     }
     catch (const MB::ModbusException &)
     {
         std::cerr << "Failed to set fingertip offset." << std::endl;
+        throw;
     }
 }
 
@@ -218,7 +236,7 @@ float RG::getFingertipOffset()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        return (float)regValue / 10000.0f;
+        return fromTenthMM(regValue);
     }
     catch (const MB::ModbusException &)
     {
@@ -234,7 +252,7 @@ float RG::getWidth()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        return (float)regValue / 10000.0f;
+        return fromTenthMM(regValue);
     }
     catch (const MB::ModbusException &)
     {
@@ -267,56 +285,35 @@ std::vector<int> RG::getStatus()
     return status_list;
 }
 
+std::vector<std::string> RG::getDetailedStatus()
+{
+    auto status_list = getStatus();
+    std::vector<std::string> messages;
+    
+    if (status_list[0] == 1) messages.push_back("Busy - motion ongoing");
+    if (status_list[1] == 1) messages.push_back("Grip detected");
+    if (status_list[2] == 1) messages.push_back("Safety switch 1 pushed");
+    if (status_list[3] == 1) messages.push_back("Safety circuit 1 activated");
+    if (status_list[4] == 1) messages.push_back("Safety switch 2 pushed");
+    if (status_list[5] == 1) messages.push_back("Safety circuit 2 activated");
+    if (status_list[6] == 1) messages.push_back("Safety error on power on");
+    
+    if (messages.empty()) {
+        messages.push_back("Ready");
+    }
+    
+    return messages;
+}
+
 std::vector<int> RG::getStatusAndPrint()
 {
-    std::vector<int> status_list(7, 0);
-    MB::ModbusRequest req(DEVICE_ID, MB::utils::ReadAnalogOutputHoldingRegisters, REG_STATUS, 1);
-    try
-    {
-        MB::ModbusResponse resp = sendRequest(req);
-        uint16_t reg = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        // Interpret individual bits.
-        if (reg & STATUS_BUSY)
-        {
-            std::cout << "A motion is ongoing so new commands are not accepted." << std::endl;
-            status_list[0] = 1;
-        }
-        if (reg & STATUS_GRIP_DETECTED)
-        {
-            std::cout << "An internal- or external grip is detected." << std::endl;
-            status_list[1] = 1;
-        }
-        if (reg & STATUS_S1_PUSHED)
-        {
-            std::cout << "Safety switch 1 is pushed." << std::endl;
-            status_list[2] = 1;
-        }
-        if (reg & STATUS_S1_TRIGGERED)
-        {
-            std::cout << "Safety circuit 1 is activated so it will not move." << std::endl;
-            status_list[3] = 1;
-        }
-        if (reg & STATUS_S2_PUSHED)
-        {
-            std::cout << "Safety switch 2 is pushed." << std::endl;
-            status_list[4] = 1;
-        }
-        if (reg & STATUS_S2_TRIGGERED)
-        {
-            std::cout << "Safety circuit 2 is activated so it will not move." << std::endl;
-            status_list[5] = 1;
-        }
-        if (reg & STATUS_SAFETY_ERROR)
-        {
-            std::cout << "Any of the safety switches is pushed." << std::endl;
-            status_list[6] = 1;
-        }
+    std::vector<int> status_list = getStatus();
+    auto messages = getDetailedStatus();
+    
+    for (const auto& msg : messages) {
+        std::cout << msg << std::endl;
     }
-    catch (const MB::ModbusException &)
-    {
-        std::cerr << "Failed to read status." << std::endl;
-        status_list.assign(7, -1);
-    }
+    
     return status_list;
 }
 
@@ -327,7 +324,7 @@ float RG::getWidthWithOffset()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        return (float)regValue / 10000.0f;
+        return fromTenthMM(regValue);
     }
     catch (const MB::ModbusException &)
     {
@@ -343,7 +340,7 @@ float RG::getCurrentForce()
     {
         MB::ModbusResponse resp = sendRequest(req);
         uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
-        return static_cast<float>(regValue) / 10.0f; // Force in N (divided by 10 based on documentation)
+        return static_cast<float>(regValue) / 10.0f; // Convert from 1/10 N to N
     }
     catch (const MB::ModbusException &)
     {
@@ -361,4 +358,23 @@ float RG::getMinWidth()
 float RG::getMaxWidth()
 {
     return max_width;
+}
+
+bool RG::waitUntilReady(int timeout_ms)
+{
+    auto start = std::chrono::steady_clock::now();
+    while (true) {
+        auto status = getStatus();
+        if (!status[0]) { // Not busy
+            return true;
+        }
+        
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start);
+        if (elapsed.count() > timeout_ms) {
+            return false;
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
 }

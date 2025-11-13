@@ -27,6 +27,7 @@ public:
     float getFingertipOffset();
     float getWidth();
     std::vector<int> getStatus();
+    std::vector<std::string> getDetailedStatus();
     std::vector<int> getStatusAndPrint();
     float getWidthWithOffset();
     float getCurrentForce();
@@ -43,6 +44,9 @@ public:
     void closeGripper();
     void openGripper();
     void moveGripper(float width_val);
+
+    // Utility functions
+    bool waitUntilReady(int timeout_ms = 5000);
 
 private:
     std::unique_ptr<IModbusConnection> connection;

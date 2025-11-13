@@ -42,7 +42,9 @@ public:
     float getChannelAVacuum();
     float getChannelBVacuum();
     std::vector<int> getStatus();
+    std::vector<std::string> getDetailedStatus();
     bool isGripping();
+    bool waitForGrip(int timeout_ms = 3000);
 
 private:
     std::unique_ptr<IModbusConnection> connection;
