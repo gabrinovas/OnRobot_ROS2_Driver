@@ -1,11 +1,11 @@
-#include "FG.hpp"
+#include "TwoFG.hpp"
 
-FG::FG(const std::string &type, const std::string &ip, int port, int device_address)
+TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int device_address)
     : type(type), device_address_(device_address)
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
-    if (type != "2fg7" && type != "2fg14" && type!="3fg15")
+    if (type != "2fg7" && type != "2fg14")
         throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
 
     // Attempt to establish TCP connection, retrying until successful
@@ -29,12 +29,12 @@ FG::FG(const std::string &type, const std::string &ip, int port, int device_addr
     setTargetSpeed(default_speed_);
 }
 
-FG::FG(const std::string &type, const std::string &device, int device_address)
+TwoFG::TwoFG(const std::string &type, const std::string &device, int device_address)
     : type(type), device_address_(device_address)
 {
     if (device.empty())
         throw std::invalid_argument("Please provide a serial device for connection.");
-    if (type != "2fg7" && type != "2fg14" && type!="3fg15")
+    if (type != "2fg7" && type != "2fg14")
         throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
 
     // Attempt to establish Serial connection, retrying until successful
@@ -58,13 +58,13 @@ FG::FG(const std::string &type, const std::string &device, int device_address)
     setTargetSpeed(default_speed_);
 }
 
-FG::~FG()
+TwoFG::~TwoFG()
 {
     if (connection)
         connection->close();
 }
 
-MB::ModbusResponse FG::sendRequest(const MB::ModbusRequest &req)
+MB::ModbusResponse TwoFG::sendRequest(const MB::ModbusRequest &req)
 {
     try
     {
@@ -77,17 +77,17 @@ MB::ModbusResponse FG::sendRequest(const MB::ModbusRequest &req)
     }
 }
 
-float FG::fromTenthMM(uint16_t tenth_mm)
+float TwoFG::fromTenthMM(uint16_t tenth_mm)
 {
     return static_cast<float>(tenth_mm) / 10000.0f; // Convert 1/10 mm to meters
 }
 
-uint16_t FG::toTenthMM(float meters)
+uint16_t TwoFG::toTenthMM(float meters)
 {
     return static_cast<uint16_t>(meters * 10000.0f); // Convert meters to 1/10 mm
 }
 
-void FG::moveGripper(float width_val, bool external_grip)
+void TwoFG::moveGripper(float width_val, bool external_grip)
 {
     // Clamp width to valid range
     float clamped_width = std::max(MIN_WIDTH, std::min(width_val, MAX_WIDTH));
@@ -103,22 +103,22 @@ void FG::moveGripper(float width_val, bool external_grip)
     }
 }
 
-void FG::gripExternal()
+void TwoFG::gripExternal()
 {
     setCommand(CMD_GRIP_EXTERNAL);
 }
 
-void FG::gripInternal()
+void TwoFG::gripInternal()
 {
     setCommand(CMD_GRIP_INTERNAL);
 }
 
-void FG::stop()
+void TwoFG::stop()
 {
     setCommand(CMD_STOP);
 }
 
-void FG::setCommand(uint16_t command)
+void TwoFG::setCommand(uint16_t command)
 {
     std::vector<MB::ModbusCell> values = {MB::ModbusCell(command)};
     MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_COMMAND, 1, values);
@@ -133,7 +133,7 @@ void FG::setCommand(uint16_t command)
     }
 }
 
-void FG::setTargetForce(float force_val)
+void TwoFG::setTargetForce(float force_val)
 {
     // Clamp force to valid range (0-MAX_FORCE)
     float clamped_force = std::max(0.0f, std::min(force_val, MAX_FORCE));
@@ -150,7 +150,7 @@ void FG::setTargetForce(float force_val)
     }
 }
 
-void FG::setTargetWidth(float width_val)
+void TwoFG::setTargetWidth(float width_val)
 {
     // Clamp width to valid range
     float clamped_width = std::max(MIN_WIDTH, std::min(width_val, MAX_WIDTH));
@@ -167,7 +167,7 @@ void FG::setTargetWidth(float width_val)
     }
 }
 
-void FG::setTargetSpeed(float speed_val)
+void TwoFG::setTargetSpeed(float speed_val)
 {
     // Clamp speed to valid range (10-100%)
     float clamped_speed = std::max(10.0f, std::min(speed_val, 100.0f));
@@ -184,7 +184,7 @@ void FG::setTargetSpeed(float speed_val)
     }
 }
 
-float FG::getWidth()
+float TwoFG::getWidth()
 {
     MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_EXTERNAL_WIDTH, 1);
     try
@@ -200,7 +200,7 @@ float FG::getWidth()
     }
 }
 
-std::vector<int> FG::getStatus()
+std::vector<int> TwoFG::getStatus()
 {
     std::vector<int> status_list(4, 0);
     uint16_t status_raw = getStatusRaw();
@@ -213,7 +213,7 @@ std::vector<int> FG::getStatus()
     return status_list;
 }
 
-uint16_t FG::getStatusRaw()
+uint16_t TwoFG::getStatusRaw()
 {
     MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_STATUS, 1);
     try
@@ -228,12 +228,12 @@ uint16_t FG::getStatusRaw()
     }
 }
 
-float FG::getMinWidth()
+float TwoFG::getMinWidth()
 {
     return MIN_WIDTH;
 }
 
-float FG::getMaxWidth()
+float TwoFG::getMaxWidth()
 {
     return MAX_WIDTH;
 }

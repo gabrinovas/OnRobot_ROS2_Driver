@@ -16,12 +16,12 @@
 #include "MB/modbusException.hpp"
 #include "MB/modbusUtils.hpp"
 
-class FG {
+class TwoFG {
 public:
     // Constructors for TCP and Serial connections
-    FG(const std::string &type, const std::string &ip, int port, int device_address);
-    FG(const std::string &type, const std::string &device, int device_address = 65);
-    ~FG();
+    TwoFG(const std::string &type, const std::string &ip, int port, int device_address);
+    TwoFG(const std::string &type, const std::string &device, int device_address = 65);
+    ~TwoFG();
 
     // Read commands
     float getWidth();
