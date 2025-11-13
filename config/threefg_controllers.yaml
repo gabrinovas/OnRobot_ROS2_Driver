@@ -1,0 +1,31 @@
+$(var ns):
+  controller_manager:
+    ros__parameters:
+      update_rate: 50
+
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
+
+      finger_width_controller:
+        type: position_controllers/JointGroupPositionController
+
+  finger_width_controller:
+    ros__parameters:
+      joints:
+        - $(var prefix)finger_width
+      # 3FG-specific parameters
+      state_publish_rate: 50.0
+      action_monitor_rate: 10.0
+      allow_partial_joints_goal: true
+      constraints:
+        goal_time: 5.0
+        stopped_velocity_tolerance: 0.01
+        finger_width:
+          goal: 0.001
+          trajectory: 0.001
+      # 3FG gripper specific parameters
+      max_width: 0.15  # 150mm for 3FG15
+      min_width: 0.0
+      default_force: 70.0  # 50% of 140N max force
+      grip_type: "external"  # external or internal
+      use_flexible_grip: false
