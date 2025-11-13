@@ -170,6 +170,7 @@ add_executable(gripper_status_monitor
 ament_target_dependencies(gripper_status_monitor
   rclcpp
   std_msgs
+  sensor_msgs
 )
 
 # =============================================================================
