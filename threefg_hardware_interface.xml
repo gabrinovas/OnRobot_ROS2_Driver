@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <library path="onrobot_threefg_driver_plugin">
-  <class name="onrobot_driver/ThreeFGHardwareInterface"
+  <class name="onrobot_driver::ThreeFGHardwareInterface"
          type="onrobot_driver::ThreeFGHardwareInterface"
          base_class_type="hardware_interface::ActuatorInterface">
     <description>
