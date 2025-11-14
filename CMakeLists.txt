@@ -76,21 +76,21 @@ ament_target_dependencies(onrobot_rg_driver_plugin
 # =============================================================================
 # Build the 2FG hardware interface as a shared library
 # =============================================================================
-add_library(onrobot_fg_driver_plugin
+add_library(onrobot_twofg_driver_plugin
   SHARED
-  src/fg_hardware_interface.cpp
-  src/FG.cpp
+  src/twofg_hardware_interface.cpp
+  src/TwoFG.cpp
   include/onrobot_driver/TCPConnectionWrapper.hpp
   include/onrobot_driver/SerialConnectionWrapper.hpp
   include/onrobot_driver/IModbusConnection.hpp
 )
 
-target_link_libraries(onrobot_fg_driver_plugin
+target_link_libraries(onrobot_twofg_driver_plugin
   Modbus
-  pluginlib::pluginlib  # NECESARIO para PLUGINLIB_EXPORT_CLASS
+  pluginlib::pluginlib
 )
 
-target_include_directories(onrobot_fg_driver_plugin
+target_include_directories(onrobot_twofg_driver_plugin
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -98,7 +98,36 @@ target_include_directories(onrobot_fg_driver_plugin
     include
 )
 
-ament_target_dependencies(onrobot_fg_driver_plugin
+ament_target_dependencies(onrobot_twofg_driver_plugin
+  ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
+
+# =============================================================================
+# Build the 3FG hardware interface as a shared library
+# =============================================================================
+add_library(onrobot_threefg_driver_plugin
+  SHARED
+  src/threefg_hardware_interface.cpp
+  src/ThreeFG.cpp
+  include/onrobot_driver/TCPConnectionWrapper.hpp
+  include/onrobot_driver/SerialConnectionWrapper.hpp
+  include/onrobot_driver/IModbusConnection.hpp
+)
+
+target_link_libraries(onrobot_threefg_driver_plugin
+  Modbus
+  pluginlib::pluginlib
+)
+
+target_include_directories(onrobot_threefg_driver_plugin
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    include
+)
+
+ament_target_dependencies(onrobot_threefg_driver_plugin
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
@@ -120,7 +149,8 @@ ament_target_dependencies(gripper_status_monitor
 install(
   TARGETS
     onrobot_rg_driver_plugin
-    onrobot_fg_driver_plugin
+    onrobot_twofg_driver_plugin
+    onrobot_threefg_driver_plugin
     gripper_status_monitor
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -140,7 +170,8 @@ install(
 install(
   FILES
     rg_hardware_interface.xml
-    fg_hardware_interface.xml
+    twofg_hardware_interface.xml
+    threefg_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -150,7 +181,8 @@ install(
 ament_export_include_directories(include)
 ament_export_libraries(
   onrobot_rg_driver_plugin
-  onrobot_fg_driver_plugin
+  onrobot_twofg_driver_plugin
+  onrobot_threefg_driver_plugin
 )
 ament_export_dependencies(
   hardware_interface
@@ -163,7 +195,8 @@ ament_export_dependencies(
 # =============================================================================
 # Export hardware plugins (pluginlib registration)
 # =============================================================================
-pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface twofg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface threefg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
 
 # =============================================================================

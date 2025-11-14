@@ -1,5 +1,5 @@
-#ifndef FG_HW_INTERFACE_HPP
-#define FG_HW_INTERFACE_HPP
+#ifndef THREE_FG_HW_INTERFACE_HPP
+#define THREE_FG_HW_INTERFACE_HPP
 
 #include <memory>
 #include <vector>
@@ -12,16 +12,16 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
-#include "FG.hpp"
+#include "ThreeFG.hpp"
 
 namespace onrobot_driver
 {
 
-    class FGHardwareInterface : public hardware_interface::ActuatorInterface
+    class ThreeFGHardwareInterface : public hardware_interface::ActuatorInterface
     {
     public:
-        FGHardwareInterface();
-        ~FGHardwareInterface() override;
+        ThreeFGHardwareInterface();
+        ~ThreeFGHardwareInterface() override;
 
         // Lifecycle methods
         hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo &info) override;
@@ -42,27 +42,24 @@ namespace onrobot_driver
 
     private:
         // The gripper instance
-        std::unique_ptr<FG> gripper_;
+        std::unique_ptr<ThreeFG> gripper_;
         std::string prefix_;
-        hardware_interface::HardwareInfo info_;  // Store hardware info for parameter access
+        hardware_interface::HardwareInfo info_;
 
         // Internal joint variables
-        double finger_width_state_;   // measured state (m)
+        double finger_width_state_;   // measured state (m) - diameter for 3FG15
         double finger_width_command_; // commanded position (m)
 
         // Connection parameters
-        std::string onrobot_type_;
         std::string connection_type_;
         std::string ip_address_;
         int port_;
-        std::string device_;
-        int device_address_;
         bool use_fake_hardware_;
 
         // Mutex for thread safety
         std::mutex hw_interface_mutex_;
     };
 
-} // namespace fg_hardware_interface
+} // namespace onrobot_driver
 
-#endif // FG_HW_INTERFACE_HPP
+#endif // THREE_FG_HW_INTERFACE_HPP

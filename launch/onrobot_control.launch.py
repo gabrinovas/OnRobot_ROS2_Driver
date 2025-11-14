@@ -33,7 +33,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'onrobot_type',
             description='Type of OnRobot gripper.',
-            choices=['rg2', 'rg6', '2fg7', '2fg14','3fg15'],
+            choices=['rg2', 'rg6', '2fg7', '2fg14', '3fg15'],
             default_value='rg2',
         )
     )
@@ -143,14 +143,18 @@ def generate_launch_description():
     robot_description = {'robot_description': robot_description_content}
 
     # Determine which controller config to use based on gripper type
-    # We'll use a simpler approach without context-dependent operations
     def get_controller_config():
-        # Use a default value for initial determination
-        if str(onrobot_type).startswith('2fg') or str(onrobot_type).startswith('3fg'):
+        if str(onrobot_type).startswith('2fg'):
             return PathJoinSubstitution([
                 FindPackageShare('onrobot_driver'),
                 'config',
-                'fg_controllers.yaml'
+                'twofg_controllers.yaml'
+            ])
+        elif str(onrobot_type).startswith('3fg'):
+            return PathJoinSubstitution([
+                FindPackageShare('onrobot_driver'),
+                'config',
+                'threefg_controllers.yaml'
             ])
         else:  # rg2, rg6
             return PathJoinSubstitution([
@@ -161,9 +165,10 @@ def generate_launch_description():
 
     # Determine which hardware interface to use based on gripper type
     def get_hardware_interface():
-        # Use a default value for initial determination
-        if str(onrobot_type).startswith('2fg') or str(onrobot_type).startswith('3fg')  :
-            return 'onrobot_driver::FGHardwareInterface'
+        if str(onrobot_type).startswith('2fg'):
+            return 'onrobot_driver::TwoFGHardwareInterface'
+        elif str(onrobot_type).startswith('3fg'):
+            return 'onrobot_driver::ThreeFGHardwareInterface'
         else:  # rg2, rg6
             return 'onrobot_driver::RGHardwareInterface'
 
@@ -227,7 +232,7 @@ def generate_launch_description():
         arguments=['-d', rviz_config_file],
     )
 
-    # Optional: Add a node to monitor gripper status (for both RG and 2FG series)
+    # Optional: Add a node to monitor gripper status (for all gripper types)
     gripper_status_node = Node(
         namespace=ns,
         package='onrobot_driver',
