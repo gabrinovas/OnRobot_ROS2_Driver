@@ -16,12 +16,12 @@
 #include "MB/modbusException.hpp"
 #include "MB/modbusUtils.hpp"
 
-class FG {
+class TwoFG {
 public:
     // Constructors for TCP and Serial connections
-    FG(const std::string &type, const std::string &ip, int port, int device_address);
-    FG(const std::string &type, const std::string &device, int device_address = 65);
-    ~FG();
+    TwoFG(const std::string &type, const std::string &ip, int port, int device_address);
+    TwoFG(const std::string &type, const std::string &device, int device_address = 65);
+    ~TwoFG();
 
     // Read commands
     float getWidth();
@@ -49,12 +49,16 @@ private:
     std::string type;
     int device_address_;
     
-    // 2FG7 specifications (in meters)
-    static constexpr float MAX_WIDTH = 0.07f;  // 70mm for 2FG7
+    // 2FG7/2FG14 specifications (in meters)
+    static constexpr float MAX_WIDTH_2FG7 = 0.07f;  // 70mm for 2FG7
+    static constexpr float MAX_WIDTH_2FG14 = 0.14f; // 140mm for 2FG14
     static constexpr float MIN_WIDTH = 0.0f;
-    static constexpr float MAX_FORCE = 70.0f;  // 70N for 2FG7
+    static constexpr float MAX_FORCE_2FG7 = 70.0f;  // 70N for 2FG7
+    static constexpr float MAX_FORCE_2FG14 = 140.0f; // 140N for 2FG14
 
-    // Default parameters
+    // Current parameters based on type
+    float max_width_;
+    float max_force_;
     float default_force_;
     float default_speed_;
 
@@ -91,4 +95,7 @@ private:
     
     // Helper function to convert width from meters to 1/10 mm
     uint16_t toTenthMM(float meters);
+    
+    // Initialize parameters based on gripper type
+    void initParams();
 };

@@ -1,5 +1,5 @@
-#ifndef FG_HW_INTERFACE_HPP
-#define FG_HW_INTERFACE_HPP
+#ifndef TWO_FG_HW_INTERFACE_HPP
+#define TWO_FG_HW_INTERFACE_HPP
 
 #include <memory>
 #include <vector>
@@ -12,16 +12,16 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
-#include "FG.hpp"
+#include "TwoFG.hpp"
 
 namespace onrobot_driver
 {
 
-    class FGHardwareInterface : public hardware_interface::ActuatorInterface
+    class TwoFGHardwareInterface : public hardware_interface::ActuatorInterface
     {
     public:
-        FGHardwareInterface();
-        ~FGHardwareInterface() override;
+        TwoFGHardwareInterface();
+        ~TwoFGHardwareInterface() override;
 
         // Lifecycle methods
         hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo &info) override;
@@ -42,7 +42,7 @@ namespace onrobot_driver
 
     private:
         // The gripper instance
-        std::unique_ptr<FG> gripper_;
+        std::unique_ptr<TwoFG> gripper_;
         std::string prefix_;
         hardware_interface::HardwareInfo info_;  // Store hardware info for parameter access
 
@@ -63,6 +63,6 @@ namespace onrobot_driver
         std::mutex hw_interface_mutex_;
     };
 
-} // namespace fg_hardware_interface
+} // namespace onrobot_driver
 
-#endif // FG_HW_INTERFACE_HPP
+#endif // TWO_FG_HW_INTERFACE_HPP
