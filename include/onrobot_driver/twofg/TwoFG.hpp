@@ -16,8 +16,9 @@
 
 class TwoFG {
 public:
-    TwoFG(const std::string &type, const std::string &ip, int port, int device_address = 65);
-    TwoFG(const std::string &type, const std::string &device, int device_address = 65);
+    // Remove default parameters to avoid ambiguity
+    TwoFG(const std::string &type, const std::string &ip, int port, int device_address);
+    TwoFG(const std::string &type, const std::string &device, int device_address);
     ~TwoFG();
 
     // Read commands

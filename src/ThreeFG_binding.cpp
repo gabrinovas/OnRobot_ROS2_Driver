@@ -7,9 +7,9 @@ namespace py = pybind11;
 PYBIND11_MODULE(ThreeFG, m) {
     py::class_<ThreeFG>(m, "ThreeFG")
         .def(py::init<const std::string&, int, int>(),
-             py::arg("ip"), py::arg("port"), py::arg("device_address") = 65)
+             py::arg("ip"), py::arg("port"), py::arg("device_address"))
         .def(py::init<const std::string&, int>(),
-             py::arg("device"), py::arg("device_address") = 65)
+             py::arg("device"), py::arg("device_address"))
         .def("getWidth", &ThreeFG::getWidth)
         .def("getCurrentDiameter", &ThreeFG::getCurrentDiameter)
         .def("getDiameterWithOffset", &ThreeFG::getDiameterWithOffset)

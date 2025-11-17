@@ -7,9 +7,9 @@ namespace py = pybind11;
 PYBIND11_MODULE(TwoFG, m) {
     py::class_<TwoFG>(m, "TwoFG")
         .def(py::init<const std::string&, const std::string&, int, int>(),
-             py::arg("type"), py::arg("ip"), py::arg("port"), py::arg("device_address") = 65)
+             py::arg("type"), py::arg("ip"), py::arg("port"), py::arg("device_address"))
         .def(py::init<const std::string&, const std::string&, int>(),
-             py::arg("type"), py::arg("device"), py::arg("device_address") = 65)
+             py::arg("type"), py::arg("device"), py::arg("device_address"))
         .def("getWidth", &TwoFG::getWidth)
         .def("getStatus", &TwoFG::getStatus)
         .def("getStatusRaw", &TwoFG::getStatusRaw)

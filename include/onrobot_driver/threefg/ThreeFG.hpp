@@ -16,8 +16,9 @@
 
 class ThreeFG {
 public:
-    ThreeFG(const std::string &ip, int port, int device_address = 65);
-    ThreeFG(const std::string &device, int device_address = 65);
+    // Remove default parameters to avoid ambiguity
+    ThreeFG(const std::string &ip, int port, int device_address);
+    ThreeFG(const std::string &device, int device_address);
     ~ThreeFG();
 
     // Read commands
@@ -83,6 +84,7 @@ private:
     // Modbus registers (from documentation)
     static constexpr uint16_t REG_TARGET_FORCE = 0;
     static constexpr uint16_t REG_TARGET_DIAMETER = 1;
+    static constexpr uint16_t REG_TARGET_SPEED = 2;
     static constexpr uint16_t REG_GRIP_TYPE = 2;
     static constexpr uint16_t REG_CONTROL = 3;
     static constexpr uint16_t REG_STATUS = 256;

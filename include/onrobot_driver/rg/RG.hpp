@@ -18,9 +18,9 @@
 
 class RG {
 public:
-    // Constructors for TCP and Serial connections
-    RG(const std::string &type, const std::string &ip, int port, int device_address = 65);  // Add device_address
-    RG(const std::string &type, const std::string &device, int device_address = 65);        // Add device_address
+    // Remove default parameters to avoid ambiguity
+    RG(const std::string &type, const std::string &ip, int port, int device_address);
+    RG(const std::string &type, const std::string &device, int device_address);
     ~RG();
 
     // Read commands
@@ -48,7 +48,7 @@ public:
 private:
     std::unique_ptr<IModbusConnection> connection;
     std::string type;
-    int device_address_;  // Add device address member
+    int device_address_;
     
     // RG specifications
     static constexpr float MAX_WIDTH_RG2 = 0.11f;   // 110mm for RG2
@@ -63,7 +63,7 @@ private:
     float max_force_;
     float default_fingertip_offset;
 
-    // Constants for registers and commands
+    // Modbus registers
     static constexpr uint16_t REG_TARGET_FORCE = 0;
     static constexpr uint16_t REG_TARGET_WIDTH = 1;
     static constexpr uint16_t REG_CONTROL = 2;

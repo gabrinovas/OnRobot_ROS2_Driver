@@ -137,14 +137,14 @@ hardware_interface::CallbackReturn TwoFGHardwareInterface::on_configure(const rc
             RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), 
                        "Creating TCP connection to %s:%d, device address: %d", 
                        ip_address_.c_str(), port_, device_address_);
-            gripper_ = std::make_unique<TwoFG>(onrobot_type_, ip_address_, port_, device_address_);
+            gripper_ = std::unique_ptr<TwoFG>(new TwoFG(onrobot_type_, ip_address_, port_, device_address_));
         }
         else if (connection_type_ == "serial")
         {
             RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"), 
                        "Creating Serial connection to %s, device address: %d", 
                        device_.c_str(), device_address_);
-            gripper_ = std::make_unique<TwoFG>(onrobot_type_, device_, device_address_);
+            gripper_ = std::unique_ptr<TwoFG>(new TwoFG(onrobot_type_, device_, device_address_));
         }
 
         // Test connection by reading initial width

@@ -135,14 +135,16 @@ namespace onrobot_driver
                 RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), 
                            "Creating TCP connection to %s:%d, device address: %d", 
                            ip_address_.c_str(), port_, device_address_);
-                gripper_ = std::make_unique<RG>(onrobot_type_, ip_address_, port_, device_address_);
+                // Use explicit construction to avoid ambiguity
+                gripper_ = std::unique_ptr<RG>(new RG(onrobot_type_, ip_address_, port_, device_address_));
             }
             else if (connection_type_ == "serial")
             {
                 RCLCPP_INFO(rclcpp::get_logger("RGHardwareInterface"), 
                            "Creating Serial connection to %s, device address: %d", 
                            device_.c_str(), device_address_);
-                gripper_ = std::make_unique<RG>(onrobot_type_, device_, device_address_);
+                // Use explicit construction to avoid ambiguity
+                gripper_ = std::unique_ptr<RG>(new RG(onrobot_type_, device_, device_address_));
             }
 
             // Get the starting width of the gripper.
