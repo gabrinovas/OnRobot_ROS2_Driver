@@ -33,7 +33,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'onrobot_type',
             description='Type of OnRobot gripper.',
-            choices=['rg2', 'rg6', '2fg7', '2fg14','3fg15'],
+            choices=['rg2', 'rg6', '2fg7', '2fg14', '3fg15'],
             default_value='rg2',
         )
     )
@@ -143,14 +143,19 @@ def generate_launch_description():
     robot_description = {'robot_description': robot_description_content}
 
     # Determine which controller config to use based on gripper type
-    # We'll use a simpler approach without context-dependent operations
     def get_controller_config():
-        # Use a default value for initial determination
-        if str(onrobot_type).startswith('2fg') or str(onrobot_type).startswith('3fg'):
+        onrobot_type_str = str(onrobot_type)
+        if onrobot_type_str.startswith('2fg'):
             return PathJoinSubstitution([
                 FindPackageShare('onrobot_driver'),
                 'config',
-                'fg_controllers.yaml'
+                'twofg_controllers.yaml'
+            ])
+        elif onrobot_type_str == '3fg15':
+            return PathJoinSubstitution([
+                FindPackageShare('onrobot_driver'),
+                'config',
+                'threefg_controllers.yaml'
             ])
         else:  # rg2, rg6
             return PathJoinSubstitution([
@@ -161,9 +166,11 @@ def generate_launch_description():
 
     # Determine which hardware interface to use based on gripper type
     def get_hardware_interface():
-        # Use a default value for initial determination
-        if str(onrobot_type).startswith('2fg') or str(onrobot_type).startswith('3fg')  :
-            return 'onrobot_driver::FGHardwareInterface'
+        onrobot_type_str = str(onrobot_type)
+        if onrobot_type_str.startswith('2fg'):
+            return 'onrobot_driver::TwoFGHardwareInterface'
+        elif onrobot_type_str == '3fg15':
+            return 'onrobot_driver::ThreeFGHardwareInterface'
         else:  # rg2, rg6
             return 'onrobot_driver::RGHardwareInterface'
 
@@ -195,7 +202,7 @@ def generate_launch_description():
         output='both'
     )
 
-    # Spawn the joint state and finger width controllers
+    # Spawn the joint state and gripper controllers
     joint_state_spawner = Node(
         namespace=ns,
         package='controller_manager',
@@ -203,11 +210,21 @@ def generate_launch_description():
         arguments=['joint_state_broadcaster'],
         output='screen'
     )
-    finger_width_spawner = Node(
+
+    # Determine which controller to spawn based on gripper type
+    def get_controller_name():
+        onrobot_type_str = str(onrobot_type)
+        if onrobot_type_str.startswith('2fg') or onrobot_type_str == '3fg15':
+            return 'finger_width_controller'
+        else:  # rg2, rg6
+            return 'gripper_controller'
+
+    controller_name = get_controller_name()
+    gripper_controller_spawner = Node(
         namespace=ns,
         package='controller_manager',
         executable='spawner',
-        arguments=['finger_width_controller'],
+        arguments=[controller_name],
         output='screen'
     )
 
@@ -227,7 +244,7 @@ def generate_launch_description():
         arguments=['-d', rviz_config_file],
     )
 
-    # Optional: Add a node to monitor gripper status (for both RG and 2FG series)
+    # Optional: Add a node to monitor gripper status (for all gripper types)
     gripper_status_node = Node(
         namespace=ns,
         package='onrobot_driver',
@@ -247,7 +264,7 @@ def generate_launch_description():
         ros2_control_node,
         robot_state_publisher_node,
         joint_state_spawner,
-        finger_width_spawner,
+        gripper_controller_spawner,
         rviz_node,
         gripper_status_node,
     ]

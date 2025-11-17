@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<library path="onrobot_threefg_driver_plugin">
+  <class name="onrobot_driver::ThreeFGHardwareInterface"
+         type="onrobot_driver::ThreeFGHardwareInterface"
+         base_class_type="hardware_interface::ActuatorInterface">
+    <description>
+        ROS 2 Control hardware interface for the OnRobot 3FG15 gripper.
+    </description>
+  </class>
+</library>

@@ -71,28 +71,54 @@ ament_target_dependencies(onrobot_rg_driver_plugin
 )
 
 # =============================================================================
-# Build the 2FG hardware interface as a shared library
+# Build the TwoFG hardware interface as a shared library
 # =============================================================================
-add_library(onrobot_fg_driver_plugin
+add_library(onrobot_twofg_driver_plugin
   SHARED
-  src/fg_hardware_interface.cpp
-  src/FG.cpp
+  src/TwoFG.cpp
+  src/twofg_hardware_interface.cpp
   include/onrobot_driver/TCPConnectionWrapper.hpp
   include/onrobot_driver/SerialConnectionWrapper.hpp
   include/onrobot_driver/IModbusConnection.hpp
 )
-target_link_libraries(onrobot_fg_driver_plugin
+target_link_libraries(onrobot_twofg_driver_plugin
   Modbus
   pluginlib::pluginlib
 )
-target_include_directories(onrobot_fg_driver_plugin
+target_include_directories(onrobot_twofg_driver_plugin
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
   PRIVATE
     include
 )
-ament_target_dependencies(onrobot_fg_driver_plugin
+ament_target_dependencies(onrobot_twofg_driver_plugin
+  ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
+
+# =============================================================================
+# Build the ThreeFG hardware interface as a shared library
+# =============================================================================
+add_library(onrobot_threefg_driver_plugin
+  SHARED
+  src/ThreeFG.cpp
+  src/threefg_hardware_interface.cpp
+  include/onrobot_driver/TCPConnectionWrapper.hpp
+  include/onrobot_driver/SerialConnectionWrapper.hpp
+  include/onrobot_driver/IModbusConnection.hpp
+)
+target_link_libraries(onrobot_threefg_driver_plugin
+  Modbus
+  pluginlib::pluginlib
+)
+target_include_directories(onrobot_threefg_driver_plugin
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    include
+)
+ament_target_dependencies(onrobot_threefg_driver_plugin
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
@@ -108,23 +134,22 @@ ament_target_dependencies(gripper_status_monitor
 )
 
 # =============================================================================
-# PYBIND11: FG como módulo Python
+# PYBIND11: Python bindings for grippers
 # =============================================================================
 find_package(pybind11 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
-# DEBUG: Imprimir versiones
+# DEBUG: Print versions
 message(STATUS "pybind11 found: ${pybind11_VERSION}")
 message(STATUS "Python3 found: ${Python3_VERSION}")
 message(STATUS "Python3 interpreter: ${Python3_EXECUTABLE}")
 
-# Crear el módulo
-pybind11_add_module(FG
-  src/FG.cpp
-  src/FG_binding.cpp
+# Create TwoFG Python module
+pybind11_add_module(TwoFG
+  src/TwoFG.cpp
+  src/TwoFG_binding.cpp
 )
-
-target_include_directories(FG
+target_include_directories(TwoFG
   PRIVATE
     include
     ${CMAKE_SOURCE_DIR}/include
@@ -132,34 +157,55 @@ target_include_directories(FG
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-
-target_link_libraries(FG
+target_link_libraries(TwoFG
   PRIVATE
     Modbus
 )
 
-# INSTALAR EN EL DIRECTORIO CORRECTO
-install(
-  TARGETS FG
-  LIBRARY DESTINATION ur_onrobot_moveit_config/local/lib/python3.10/dist-packages
-  ARCHIVE DESTINATION ur_onrobot_moveit_config/local/lib/python3.10/dist-packages
-  RUNTIME DESTINATION ur_onrobot_moveit_config/local/lib/python3.10/dist-packages
+# Create ThreeFG Python module
+pybind11_add_module(ThreeFG
+  src/ThreeFG.cpp
+  src/ThreeFG_binding.cpp
+)
+target_include_directories(ThreeFG
+  PRIVATE
+    include
+    ${CMAKE_SOURCE_DIR}/include
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(ThreeFG
+  PRIVATE
+    Modbus
 )
 
-# Instalar nodo Python
+# Install Python modules
+install(
+  TARGETS TwoFG ThreeFG
+  LIBRARY DESTINATION lib/${PROJECT_NAME}
+  ARCHIVE DESTINATION lib/${PROJECT_NAME}
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install Python nodes
 install(
   PROGRAMS
     src/test_traj_with_gripper.py
   DESTINATION lib/${PROJECT_NAME}
 )
+
 # =============================================================================
 # INSTALL
 # =============================================================================
 install(
   TARGETS
     onrobot_rg_driver_plugin
-    onrobot_fg_driver_plugin
+    onrobot_twofg_driver_plugin
+    onrobot_threefg_driver_plugin
     gripper_status_monitor
+    TwoFG
+    ThreeFG
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -176,7 +222,8 @@ install(
 install(
   FILES
     rg_hardware_interface.xml
-    fg_hardware_interface.xml
+    twofg_hardware_interface.xml
+    threefg_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -186,7 +233,8 @@ install(
 ament_export_include_directories(include)
 ament_export_libraries(
   onrobot_rg_driver_plugin
-  onrobot_fg_driver_plugin
+  onrobot_twofg_driver_plugin
+  onrobot_threefg_driver_plugin
 )
 ament_export_dependencies(
   hardware_interface
@@ -199,7 +247,8 @@ ament_export_dependencies(
 # =============================================================================
 # Export hardware plugins
 # =============================================================================
-pluginlib_export_plugin_description_file(hardware_interface fg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface twofg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface threefg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
 
 # =============================================================================

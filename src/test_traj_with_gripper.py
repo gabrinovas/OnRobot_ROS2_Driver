@@ -8,11 +8,16 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 import time
 import threading
-from FG import FG  # ← Funciona con el .so copiado
+from TwoFG import TwoFG  # ← Funciona con el .so copiado
+from ThreeFG import ThreeFG  # ← Funciona con el .so copiado
 
 class UR5eGripperTrajectory(Node):
     def __init__(self):
         super().__init__('UR5eGripperTrajectory')
+
+        # Gripper type parameter (can be set via command line)
+        self.declare_parameter('gripper_type', '3fg15')
+        self.gripper_type = self.get_parameter('gripper_type').get_parameter_value().string_value
 
         self.publisher_ = self.create_publisher(
             JointTrajectory,
@@ -50,24 +55,36 @@ class UR5eGripperTrajectory(Node):
 
         # === IMPRESIÓN INICIAL ===
         print("="*70)
-        print("INICIANDO SECUENCIA: HOME → Z → GRIP → HOME")
+        print(f"INICIANDO SECUENCIA: HOME → Z → GRIP → HOME")
+        print(f"GRIPPER TYPE: {self.gripper_type.upper()}")
         print("="*70)
 
-        # === Gripper ===
+        # === Gripper - Modular approach ===
+        self.gripper = None
         try:
-            self.gripper = FG("3fg15", "192.168.1.1", 502)
-            print("GRIPPER 3FG15 CONECTADO")
-            self.get_logger().info("Gripper 3FG15 conectado")
+            if self.gripper_type == "3fg15":
+                self.gripper = ThreeFG("192.168.1.1", 502)
+                print("3FG15 GRIPPER CONECTADO")
+                self.get_logger().info("3FG15 Gripper conectado")
+            elif self.gripper_type.startswith("2fg"):
+                self.gripper = TwoFG(self.gripper_type, "192.168.1.1", 502)
+                print(f"{self.gripper_type.upper()} GRIPPER CONECTADO")
+                self.get_logger().info(f"{self.gripper_type.upper()} Gripper conectado")
+            else:
+                print(f"Tipo de gripper no soportado: {self.gripper_type}")
+                self.get_logger().warn(f"Tipo de gripper no soportado: {self.gripper_type}")
+        except ImportError as e:
+            print(f"Error importando módulo del gripper: {e}")
+            self.get_logger().error(f"Error importando módulo del gripper: {e}")
         except Exception as e:
-            print(f"GRIPPER NO CONECTADO: {e}")
-            self.get_logger().warn(f"Gripper no conectado: {e}")
-            self.gripper = None
+            print(f"Error conectando con gripper: {e}")
+            self.get_logger().error(f"Error conectando con gripper: {e}")
 
         # === Hilo de monitoreo ===
         self.monitor_thread = threading.Thread(target=self.monitor_loop, daemon=True)
         self.monitor_thread.start()
 
-        self.get_logger().info('Iniciando secuencia: HOME → Z → GRIP → HOME')
+        self.get_logger().info(f'Iniciando secuencia para {self.gripper_type}: HOME → Z → GRIP → HOME')
 
     # =============================================
     # MÉTODOS DE TRAYECTORIA
@@ -153,33 +170,81 @@ class UR5eGripperTrajectory(Node):
                 rate.sleep()
                 continue
             try:
-                diam = self.gripper.getCurrentDiameter()
-                force = self.gripper.getAppliedForce()
-                status_dict = self.gripper.getDetailedStatus()
+                # Common methods for both gripper types
+                width = self.gripper.getWidth()
+                status_list = self.gripper.getStatus()
+                
+                # Publish common data
+                self.pub_diam.publish(Float32(data=width))
+                self.pub_busy.publish(Bool(data=status_list[0] if status_list else False))
 
-                # Publicar
-                self.pub_diam.publish(Float32(data=diam))
-                self.pub_force.publish(Float32(data=force))
-                self.pub_busy.publish(Bool(data=status_dict.get('busy', False)))
+                # Gripper-specific monitoring
+                if self.gripper_type == "3fg15":
+                    # 3FG15 specific monitoring
+                    force = self.gripper.getAppliedForce()
+                    status_dict = self.gripper.getDetailedStatus()
+                    
+                    self.pub_force.publish(Float32(data=force))
+                    
+                    state = "BUSY" if status_dict.get('busy', False) else "IDLE"
+                    grip = "GRIP" if status_dict.get('grip_detected', False) else "OPEN"
+                    print(f"3FG15 → {state} | {grip} | Diámetro: {width*1000:6.1f}mm | Fuerza: {force:5.1f}N", end='\r')
+                    
+                    msg = f"3FG15 | {state} | {grip} | {width*1000:.1f}mm | {force:.1f}N"
+                else:
+                    # 2FG series monitoring
+                    state = "BUSY" if status_list[0] else "IDLE"
+                    grip = "GRIP" if status_list[1] else "OPEN"
+                    print(f"{self.gripper_type.upper()} → {state} | {grip} | Ancho: {width*1000:6.1f}mm", end='\r')
+                    
+                    msg = f"{self.gripper_type.upper()} | {state} | {grip} | {width*1000:.1f}mm"
 
-                # IMPRIMIR EN TERMINAL
-                state = "BUSY" if status_dict.get('busy') else "IDLE"
-                grip = "GRIP" if status_dict.get('grip_detected') else "OPEN"
-                print(f"GRIPPER → {state} | {grip} | Diámetro: {diam*1000:6.1f}mm | Fuerza: {force:5.1f}N", end='\r')
-
-                # Publicar estado
-                msg = f"{state} | {grip} | {diam*1000:.1f}mm | {force:.1f}N"
                 self.pub_status.publish(String(data=msg))
+
             except Exception as e:
-                print(f"Error lectura gripper: {e}", end='\r')
-                self.get_logger().warn(f"Error lectura gripper: {e}")
+                print(f"Error lectura gripper {self.gripper_type}: {e}", end='\r')
+                self.get_logger().warn(f"Error lectura gripper {self.gripper_type}: {e}")
             rate.sleep()
+
+    # =============================================
+    # GRIPPER CONTROL METHODS
+    # =============================================
+    def control_gripper(self, width, action_name=""):
+        """Control the gripper based on its type"""
+        if not self.gripper:
+            print(f"GRIPPER NO DISPONIBLE para {action_name}")
+            return
+            
+        try:
+            if self.gripper_type == "3fg15":
+                # 3FG15 only supports internal grip
+                self.gripper.setTargetWidth(width)
+                self.gripper.gripInternal()
+                print(f"3FG15 → {action_name}: Diámetro {width*1000:.1f}mm")
+            else:
+                # 2FG series - use external grip by default
+                self.gripper.moveGripper(width, external_grip=True)
+                print(f"{self.gripper_type.upper()} → {action_name}: Ancho {width*1000:.1f}mm")
+                
+        except Exception as e:
+            print(f"Error controlando gripper {self.gripper_type}: {e}")
+            self.get_logger().error(f"Error controlando gripper: {e}")
 
     # =============================================
     # SECUENCIA (IMPRIME CADA PASO)
     # =============================================
     def run_sequence(self):
         q_current = self.read_current_joints()
+
+        # Define gripper widths based on type
+        if self.gripper_type == "3fg15":
+            grip_narrow = 0.04   # 40mm diameter
+            grip_wide = 0.10     # 100mm diameter  
+            grip_final = 0.04    # 40mm diameter
+        else:  # 2FG series
+            grip_narrow = 0.035  # 35mm width
+            grip_wide = 0.07     # 70mm width
+            grip_final = 0.05    # 50mm width
 
         # 1. Ir a HOME
         print("\n1. Moviéndose a HOME...")
@@ -188,46 +253,31 @@ class UR5eGripperTrajectory(Node):
         self.publish_trajectory(points)
         time.sleep(self.t_to_home + 1.0)
 
-        # 2. Subir en Z + GRIP 0.04m
-        print("2. Subiendo en Z + GRIP (0.04m)...")
+        # 2. Subir en Z + GRIP estrecho
+        print("2. Subiendo en Z + GRIP estrecho...")
         self.get_logger().info('2. Subiendo en Z...')
         points, _ = self.generate_spline_trajectory(self.q_home, self.q_high, self.t_up)
         self.publish_trajectory(points)
 
-        if self.gripper:
-            self.gripper.setTargetWidth(0.04)
-            self.gripper.gripInternal()
-            print("GRIP ACTIVADO → 0.04m")
-            self.get_logger().info("→ GRIP ACTIVADO")
-    
+        self.control_gripper(grip_narrow, "GRIP ESTRECHO")
         time.sleep(self.t_up + 0.5)
 
-        # 3. Bajar + GRIP 0.1m
-        print("3. Bajando + GRIP (0.1m)...")
+        # 3. Bajar + GRIP ancho
+        print("3. Bajando + GRIP ancho...")
         self.get_logger().info('3. Bajando + AGARRAR...')
         points, _ = self.generate_spline_trajectory(self.q_high, self.q_mid, self.t_down)
         self.publish_trajectory(points)
 
-        if self.gripper:
-            self.gripper.setTargetWidth(0.1)
-            self.gripper.gripInternal()
-            print("GRIP ACTIVADO → 0.1m")
-            self.get_logger().info("→ GRIP ACTIVADO")
-
+        self.control_gripper(grip_wide, "GRIP ANCHO")
         time.sleep(self.t_down + 0.5)
 
-        # 4. Volver a HOME + GRIP 0.04m
-        print("4. Volviendo a HOME + GRIP (0.04m)...")
+        # 4. Volver a HOME + GRIP estrecho
+        print("4. Volviendo a HOME + GRIP estrecho...")
         self.get_logger().info('4. Volviendo a HOME...')
         points, _ = self.generate_spline_trajectory(self.q_mid, self.q_home, self.t_back)
         self.publish_trajectory(points)
 
-        if self.gripper:
-            self.gripper.setTargetWidth(0.04)
-            self.gripper.gripInternal()
-            print("GRIP ACTIVADO → 0.04m")
-            self.get_logger().info("→ GRIP ACTIVADO")
-
+        self.control_gripper(grip_final, "GRIP FINAL")
         time.sleep(self.t_back + 1.0)
 
         print("\n" + "="*70)
@@ -245,6 +295,8 @@ def main():
         node.run_sequence()
     except KeyboardInterrupt:
         print("\nInterrumpido por usuario")
+    except Exception as e:
+        print(f"\nError durante la secuencia: {e}")
     finally:
         time.sleep(2.0)
         node.destroy_node()
