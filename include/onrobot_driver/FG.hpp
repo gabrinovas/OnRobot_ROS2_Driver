@@ -44,6 +44,27 @@ public:
     float getMinWidth();
     float getMaxWidth();
 
+    float getCurrentDiameter();           // 257: diámetro actual (m)
+    float getDiameterWithOffset();        // 258: diámetro con offset (m)
+    float getAppliedForce();              // 259: fuerza aplicada (N)
+    float getMinDiameter();               // 513: diámetro mínimo (m)
+    float getMaxDiameter();               // 514: diámetro máximo (m)
+    float getFingerLength();              // 270: longitud de dedos (mm)
+    float getFingerPosition();            // 272: posición de dedos (mm)
+    float getFingertipOffset();           // 273: offset de puntas (mm)
+
+    // --- Estado detallado ---
+    struct GripperStatus {
+        bool busy;
+        bool grip_detected;
+        bool force_grip_detected;
+        bool calibration_ok;
+    };
+
+    GripperStatus getDetailedStatus();
+
+    
+
 private:
     std::unique_ptr<IModbusConnection> connection;
     std::string type;
@@ -91,25 +112,7 @@ private:
     uint16_t toTenthMM(float meters);
 
 
-    float getCurrentDiameter();           // 257: diámetro actual (m)
-    float getDiameterWithOffset();        // 258: diámetro con offset (m)
-    float getAppliedForce();              // 259: fuerza aplicada (N)
-    float getMinDiameter();               // 513: diámetro mínimo (m)
-    float getMaxDiameter();               // 514: diámetro máximo (m)
-    float getFingerLength();              // 270: longitud de dedos (mm)
-    float getFingerPosition();            // 272: posición de dedos (mm)
-    float getFingertipOffset();           // 273: offset de puntas (mm)
-
-    // --- Estado detallado ---
-    struct GripperStatus {
-        bool busy;
-        bool grip_detected;
-        bool force_grip_detected;
-        bool calibration_ok;
-    };
-
-    GripperStatus getDetailedStatus();
-
+    
     // --- Setters para configuración avanzada (3FG15) ---
     void setGripType(bool internal);      // 2: 0=externo, 1=interno
     void setFingerLength(float mm);

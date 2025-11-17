@@ -7,7 +7,7 @@ void FG::initParams() {
     } else if (type == "2fg14") {
         params = {0.140f, 0.0f, 140.0f, 70.0f, 50.0f}; // 140mm, 140N
     } else if (type == "3fg15") {
-        params = {0.150f, 0.0f, 140.0f, 120.0f, 50.0f}; // 150mm diámetro, 240N máx
+        params = {0.150f, 0.0f, 140.0f, 2.0f, 20.0f}; // 150mm diámetro, 240N máx
     } else {
         throw std::invalid_argument("Unsupported gripper type: " + type);
     }
