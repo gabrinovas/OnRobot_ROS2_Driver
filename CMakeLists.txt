@@ -22,6 +22,10 @@ find_package(tf2_geometry_msgs REQUIRED)
 include_directories(
   include
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver
+  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/common
+  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/threefg
+  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/twofg
+  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/rg
 )
 
 # List of dependencies
@@ -49,11 +53,8 @@ add_subdirectory(include/onrobot_driver/Modbus)
 # =============================================================================
 add_library(onrobot_rg_driver_plugin
   SHARED
-  src/rg_hardware_interface.cpp
   src/RG.cpp
-  include/onrobot_driver/TCPConnectionWrapper.hpp
-  include/onrobot_driver/SerialConnectionWrapper.hpp
-  include/onrobot_driver/IModbusConnection.hpp
+  src/rg_hardware_interface.cpp
 )
 target_link_libraries(onrobot_rg_driver_plugin
   Modbus
@@ -77,9 +78,6 @@ add_library(onrobot_twofg_driver_plugin
   SHARED
   src/TwoFG.cpp
   src/twofg_hardware_interface.cpp
-  include/onrobot_driver/TCPConnectionWrapper.hpp
-  include/onrobot_driver/SerialConnectionWrapper.hpp
-  include/onrobot_driver/IModbusConnection.hpp
 )
 target_link_libraries(onrobot_twofg_driver_plugin
   Modbus
@@ -103,9 +101,6 @@ add_library(onrobot_threefg_driver_plugin
   SHARED
   src/ThreeFG.cpp
   src/threefg_hardware_interface.cpp
-  include/onrobot_driver/TCPConnectionWrapper.hpp
-  include/onrobot_driver/SerialConnectionWrapper.hpp
-  include/onrobot_driver/IModbusConnection.hpp
 )
 target_link_libraries(onrobot_threefg_driver_plugin
   Modbus
@@ -180,9 +175,27 @@ target_link_libraries(ThreeFG
     Modbus
 )
 
+# Create RG Python module (optional - add if you want Python support for RG)
+pybind11_add_module(RG
+  src/RG.cpp
+  src/RG_binding.cpp
+)
+target_include_directories(RG
+  PRIVATE
+    include
+    ${CMAKE_SOURCE_DIR}/include
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(RG
+  PRIVATE
+    Modbus
+)
+
 # Install Python modules
 install(
-  TARGETS TwoFG ThreeFG
+  TARGETS TwoFG ThreeFG RG
   LIBRARY DESTINATION lib/${PROJECT_NAME}
   ARCHIVE DESTINATION lib/${PROJECT_NAME}
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -206,6 +219,7 @@ install(
     gripper_status_monitor
     TwoFG
     ThreeFG
+    RG
   DESTINATION lib/${PROJECT_NAME}
 )
 

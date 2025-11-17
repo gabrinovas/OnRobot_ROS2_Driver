@@ -1,6 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include "onrobot_driver/ThreeFG.hpp"
+#include "onrobot_driver/threefg/ThreeFG.hpp"
 
 namespace py = pybind11;
 
@@ -29,6 +29,7 @@ PYBIND11_MODULE(ThreeFG, m) {
         .def("setTargetForce", &ThreeFG::setTargetForce)
         .def("setTargetSpeed", &ThreeFG::setTargetSpeed)
         .def("gripInternal", &ThreeFG::gripInternal)
+        .def("gripExternal", &ThreeFG::gripExternal)
         .def("stop", &ThreeFG::stop)
         .def("moveGripper", &ThreeFG::moveGripper)
         .def("getMinWidth", &ThreeFG::getMinWidth)

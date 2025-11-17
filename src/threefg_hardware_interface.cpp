@@ -1,4 +1,4 @@
-#include "onrobot_driver/threefg_hardware_interface.hpp"
+#include "onrobot_driver/threefg/threefg_hardware_interface.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -285,7 +285,7 @@ hardware_interface::return_type ThreeFGHardwareInterface::write(const rclcpp::Ti
     {
         try
         {
-            // 3FG15 uses moveGripper with diameter (only internal grip supported)
+            // 3FG15 uses moveGripper with diameter
             gripper_->moveGripper(finger_width_command_);
             RCLCPP_DEBUG(rclcpp::get_logger("ThreeFGHardwareInterface"),
                         "Sent 3FG15 command: %.3f m diameter", finger_width_command_);

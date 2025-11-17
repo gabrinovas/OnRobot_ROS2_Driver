@@ -1,4 +1,6 @@
-#include "onrobot_driver/TwoFG.hpp"
+#include "onrobot_driver/twofg/TwoFG.hpp"
+#include "onrobot_driver/common/TCPConnectionWrapper.hpp"
+#include "onrobot_driver/common/SerialConnectionWrapper.hpp"
 #include <chrono>
 #include <thread>
 

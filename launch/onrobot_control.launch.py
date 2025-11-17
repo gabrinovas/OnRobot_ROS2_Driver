@@ -167,9 +167,9 @@ def generate_launch_description():
     # Determine which hardware interface to use based on gripper type
     def get_hardware_interface():
         onrobot_type_str = str(onrobot_type)
-        if onrobot_type_str.startswith('2fg'):
+        if onrobot_type_str.startswith("2fg"):
             return 'onrobot_driver::TwoFGHardwareInterface'
-        elif onrobot_type_str == '3fg15':
+        elif onrobot_type_str == "3fg15":
             return 'onrobot_driver::ThreeFGHardwareInterface'
         else:  # rg2, rg6
             return 'onrobot_driver::RGHardwareInterface'

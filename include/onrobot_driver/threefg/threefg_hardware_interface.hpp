@@ -12,7 +12,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
-#include "ThreeFG.hpp"
+#include "../threefg/ThreeFG.hpp"
 
 namespace onrobot_driver
 {

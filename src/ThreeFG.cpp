@@ -1,4 +1,6 @@
-#include "onrobot_driver/ThreeFG.hpp"
+#include "onrobot_driver/threefg/ThreeFG.hpp"
+#include "onrobot_driver/common/TCPConnectionWrapper.hpp"
+#include "onrobot_driver/common/SerialConnectionWrapper.hpp"
 #include <chrono>
 #include <thread>
 
@@ -86,18 +88,25 @@ uint16_t ThreeFG::toTenthMM(float meters)
 void ThreeFG::moveGripper(float diameter_val)
 {
     // Clamp diameter to valid range
-    float clamped_diameter = std::max(MIN_DIAMETER, std::min(diameter_val, MAX_DIAMETER));
+    float clamped_diameter = std::max(getMinDiameter(), std::min(diameter_val, getMaxDiameter()));
     
     // Set target diameter
     setTargetWidth(clamped_diameter);
     
-    // Execute internal grip command (3FG15 only supports internal grip)
-    gripInternal();
+    // Use move command (without force) for simple positioning
+    setCommand(CMD_MOVE);
 }
 
 void ThreeFG::gripInternal()
 {
-    setCommand(CMD_GRIP_INTERNAL);
+    setGripType(true);  // true = internal grip
+    setCommand(CMD_GRIP);
+}
+
+void ThreeFG::gripExternal()
+{
+    setGripType(false);  // false = external grip  
+    setCommand(CMD_GRIP);
 }
 
 void ThreeFG::stop()
@@ -108,7 +117,7 @@ void ThreeFG::stop()
 void ThreeFG::setCommand(uint16_t command)
 {
     std::vector<MB::ModbusCell> values = {MB::ModbusCell(command)};
-    MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_COMMAND, 1, values);
+    MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_CONTROL, 1, values);
     try
     {
         sendRequest(req);
@@ -122,9 +131,11 @@ void ThreeFG::setCommand(uint16_t command)
 
 void ThreeFG::setTargetForce(float force_val)
 {
-    // Clamp force to valid range (0-MAX_FORCE)
-    float clamped_force = std::max(0.0f, std::min(force_val, MAX_FORCE));
-    std::vector<MB::ModbusCell> values = {MB::ModbusCell(static_cast<uint16_t>(clamped_force))};
+    // Force is in 10% units (0-1000 for 0-100%)
+    float force_percent = (force_val / MAX_FORCE) * 100.0f;
+    uint16_t force_reg_value = static_cast<uint16_t>(force_percent * 10.0f); // Convert to 1/10 %
+    
+    std::vector<MB::ModbusCell> values = {MB::ModbusCell(force_reg_value)};
     MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_FORCE, 1, values);
     try
     {
@@ -140,9 +151,9 @@ void ThreeFG::setTargetForce(float force_val)
 void ThreeFG::setTargetWidth(float diameter_val)
 {
     // Clamp diameter to valid range
-    float clamped_diameter = std::max(MIN_DIAMETER, std::min(diameter_val, MAX_DIAMETER));
+    float clamped_diameter = std::max(getMinDiameter(), std::min(diameter_val, getMaxDiameter()));
     std::vector<MB::ModbusCell> values = {MB::ModbusCell(toTenthMM(clamped_diameter))};
-    MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_WIDTH, 1, values);
+    MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_TARGET_DIAMETER, 1, values);
     try
     {
         sendRequest(req);
@@ -178,7 +189,7 @@ float ThreeFG::getWidth()
 
 float ThreeFG::getCurrentDiameter()
 {
-    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_EXTERNAL_WIDTH, 1);
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_RAW_DIAMETER, 1);
     try
     {
         MB::ModbusResponse resp = sendRequest(req);
@@ -199,8 +210,8 @@ std::vector<int> ThreeFG::getStatus()
     
     status_list[0] = (status_raw & STATUS_BUSY) ? 1 : 0;
     status_list[1] = (status_raw & STATUS_GRIP_DETECTED) ? 1 : 0;
-    status_list[2] = (status_raw & STATUS_CALIBRATION_OK) ? 0 : 1; // Inverted for error
-    status_list[3] = (status_raw & STATUS_ERROR_LINEAR_SENSOR) ? 1 : 0;
+    status_list[2] = (status_raw & STATUS_FORCE_GRIP_DETECTED) ? 1 : 0;
+    status_list[3] = (status_raw & STATUS_CALIBRATION_OK) ? 1 : 0;
     
     return status_list;
 }
@@ -220,8 +231,8 @@ uint16_t ThreeFG::getStatusRaw()
     }
 }
 
-float ThreeFG::getMinWidth() { return MIN_DIAMETER; }
-float ThreeFG::getMaxWidth() { return MAX_DIAMETER; }
+float ThreeFG::getMinWidth() { return getMinDiameter(); }
+float ThreeFG::getMaxWidth() { return getMaxDiameter(); }
 
 float ThreeFG::getDiameterWithOffset()
 {
@@ -242,13 +253,12 @@ float ThreeFG::getDiameterWithOffset()
 float ThreeFG::getAppliedForce()
 {
     MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_APPLIED_FORCE, 1);
-    try
-    {
+    try {
         MB::ModbusResponse resp = sendRequest(req);
-        return static_cast<float>(resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0);
-    }
-    catch (const MB::ModbusException &)
-    {
+        uint16_t reg_value = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        // Convert from 1/10 % back to Newtons
+        return (static_cast<float>(reg_value) / 10.0f / 100.0f) * MAX_FORCE;
+    } catch (const MB::ModbusException &) {
         std::cerr << "Failed to read applied force." << std::endl;
         return -1.0f;
     }
@@ -292,7 +302,8 @@ float ThreeFG::getFingerLength()
     try
     {
         MB::ModbusResponse resp = sendRequest(req);
-        return static_cast<float>(resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return static_cast<float>(regValue) / 10.0f; // Convert from 1/10 mm to mm
     }
     catch (const MB::ModbusException &)
     {
@@ -322,7 +333,8 @@ float ThreeFG::getFingertipOffset()
     try
     {
         MB::ModbusResponse resp = sendRequest(req);
-        return static_cast<float>(resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return static_cast<float>(regValue) / 100.0f; // Convert from 1/100 mm to mm
     }
     catch (const MB::ModbusException &)
     {
@@ -362,7 +374,7 @@ void ThreeFG::setGripType(bool internal)
 
 void ThreeFG::setFingerLength(float mm)
 {
-    uint16_t value = static_cast<uint16_t>(mm);
+    uint16_t value = static_cast<uint16_t>(mm * 10.0f); // Convert to 1/10 mm
     std::vector<MB::ModbusCell> values = {MB::ModbusCell(value)};
     MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_CFG_FINGER_LENGTH, 1, values);
     try
@@ -376,9 +388,9 @@ void ThreeFG::setFingerLength(float mm)
     }
 }
 
-void ThreeFG::setFingerPosition(float mm)
+void ThreeFG::setFingerPosition(float position)
 {
-    uint16_t value = static_cast<uint16_t>(mm);
+    uint16_t value = static_cast<uint16_t>(position);
     std::vector<MB::ModbusCell> values = {MB::ModbusCell(value)};
     MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_CFG_FINGER_POSITION, 1, values);
     try
@@ -394,7 +406,7 @@ void ThreeFG::setFingerPosition(float mm)
 
 void ThreeFG::setFingertipOffset(float mm)
 {
-    uint16_t value = static_cast<uint16_t>(mm);
+    uint16_t value = static_cast<uint16_t>(mm * 100.0f); // Convert to 1/100 mm
     std::vector<MB::ModbusCell> values = {MB::ModbusCell(value)};
     MB::ModbusRequest req(device_address_, MB::utils::WriteSingleAnalogOutputRegister, REG_CFG_FINGERTIP_OFFSET, 1, values);
     try

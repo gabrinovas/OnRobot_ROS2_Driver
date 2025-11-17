@@ -20,5 +20,5 @@ $(var ns):
         goal_time: 5.0
         stopped_velocity_tolerance: 0.01
         finger_width:
-          goal: 0.001
-          trajectory: 0.001
+          goal: 0.005  # 5mm tolerance for diameter
+          trajectory: 0.005

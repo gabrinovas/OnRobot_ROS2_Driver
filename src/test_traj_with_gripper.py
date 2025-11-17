@@ -8,8 +8,8 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 import time
 import threading
-from TwoFG import TwoFG  # ← Funciona con el .so copiado
-from ThreeFG import ThreeFG  # ← Funciona con el .so copiado
+from onrobot_driver.TwoFG import TwoFG
+from onrobot_driver.ThreeFG import ThreeFG
 
 class UR5eGripperTrajectory(Node):
     def __init__(self):
