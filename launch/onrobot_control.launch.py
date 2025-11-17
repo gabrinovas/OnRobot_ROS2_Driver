@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterFile
+from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 from launch import LaunchDescription
@@ -140,7 +140,9 @@ def generate_launch_description():
         ' ',
         'name:=onrobot'
     ])
-    robot_description = {'robot_description': robot_description_content}
+    
+    # Use ParameterValue to properly handle the robot description string
+    robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
 
     # Determine which controller config to use based on gripper type
     def get_controller_config():
@@ -167,9 +169,9 @@ def generate_launch_description():
     # Determine which hardware interface to use based on gripper type
     def get_hardware_interface():
         onrobot_type_str = str(onrobot_type)
-        if onrobot_type_str.startswith("2fg"):
+        if onrobot_type_str.startswith('2fg'):
             return 'onrobot_driver::TwoFGHardwareInterface'
-        elif onrobot_type_str == "3fg15":
+        elif onrobot_type_str == '3fg15':
             return 'onrobot_driver::ThreeFGHardwareInterface'
         else:  # rg2, rg6
             return 'onrobot_driver::RGHardwareInterface'
@@ -217,7 +219,7 @@ def generate_launch_description():
         if onrobot_type_str.startswith('2fg') or onrobot_type_str == '3fg15':
             return 'finger_width_controller'
         else:  # rg2, rg6
-            return 'gripper_controller'
+            return 'finger_width_controller'  # Use same name as your functional config
 
     controller_name = get_controller_name()
     gripper_controller_spawner = Node(

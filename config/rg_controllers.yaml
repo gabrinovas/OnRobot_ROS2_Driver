@@ -6,13 +6,14 @@ $(var ns):
       joint_state_broadcaster:
         type: joint_state_broadcaster/JointStateBroadcaster
 
-      gripper_controller:
+      finger_width_controller:
         type: position_controllers/JointGroupPositionController
 
-  gripper_controller:
+  finger_width_controller:
     ros__parameters:
       joints:
         - $(var prefix)finger_width
+      # Add gripper-specific parameters
       state_publish_rate: 50.0
       action_monitor_rate: 10.0
       allow_partial_joints_goal: true
