@@ -73,7 +73,7 @@ private:
     int device_address_;
 
     // 3FG15 specifications
-    static constexpr float MAX_DIAMETER = 0.150f;
+    static constexpr float MAX_DIAMETER = 2.9f;
     static constexpr float MIN_DIAMETER = 0.0f;
     static constexpr float MAX_FORCE = 140.0f;
 
