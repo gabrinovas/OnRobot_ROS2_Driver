@@ -270,7 +270,7 @@ hardware_interface::return_type ThreeFGHardwareInterface::write(const rclcpp::Ti
         return hardware_interface::return_type::ERROR;
     }
 
-    // 3FG15 specific range validation (diameter: 0.0 - 2.9 radians)
+    // 3FG15 specific range validation (diameter: 0.0 - 0.150 m)
     const double MAX_DIAMETER = 2.9;
     if (finger_width_command_ < 0.0 || finger_width_command_ > MAX_DIAMETER)
     {

@@ -13,7 +13,7 @@ $(var ns):
     ros__parameters:
       joints:
         - $(var prefix)finger_width
-      state_publish_rate: 50.0
+      state_publish_rate: 5.0
       action_monitor_rate: 10.0
       allow_partial_joints_goal: true
       constraints:

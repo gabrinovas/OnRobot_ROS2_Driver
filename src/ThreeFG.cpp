@@ -24,7 +24,7 @@ ThreeFG::ThreeFG(const std::string &ip, int port, int device_address)
 
     initParams();
     setTargetForce(default_force_);
-    setTargetSpeed(default_speed_);
+    //setTargetSpeed(default_speed_);
 }
 
 ThreeFG::ThreeFG(const std::string &device, int device_address)
@@ -47,7 +47,7 @@ ThreeFG::ThreeFG(const std::string &device, int device_address)
 
     initParams();
     setTargetForce(default_force_);
-    setTargetSpeed(default_speed_);
+    //setTargetSpeed(default_speed_);
 }
 
 ThreeFG::~ThreeFG()
