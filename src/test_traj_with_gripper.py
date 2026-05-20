@@ -12,14 +12,14 @@ class UR5eGripperTrajectory(Node):
     def __init__(self):
         super().__init__('ur5e_gripper_trajectory')
 
-        # Publisher para el robot (sin cambios)
+        # Publisher for the robot (unchanged)
         self.robot_pub = self.create_publisher(
             JointTrajectory,
             '/scaled_joint_trajectory_controller/joint_trajectory',
             10
         )
 
-        # Publisher para el gripper OnRobot 3FG15
+        # Publisher for the OnRobot 3FG15 gripper
         self.gripper_pub = self.create_publisher(
             Float64MultiArray,
             '/onrobot/finger_width_controller/commands',
@@ -29,7 +29,7 @@ class UR5eGripperTrajectory(Node):
         self.max_vel = 1.5
         self.freq = 125
 
-        # Posiciones del robot (sin cambios)
+        # Robot positions (unchanged)
         self.q_home = np.array([1.582956, -1.850573, 1.796592, -1.442179, -1.519554, 0.154681])
         self.q_high = np.array([1.582956, -2.2,     1.6,      -1.442179, -1.519554, 0.154681])
         self.q_mid  = np.array([1.582956, -2.0,     1.7,      -1.442179, -1.519554, 0.154681])
@@ -40,11 +40,11 @@ class UR5eGripperTrajectory(Node):
         self.t_back    = 3.0
 
         print("="*70)
-        print("INICIANDO SECUENCIA: HOME → Z → GRIP → HOME")
-        print("Control del gripper 3FG15 vía topic ROS2")
+        print("STARTING SEQUENCE: HOME → Z → GRIP → HOME")
+        print("Control of the 3FG15 gripper via ROS2 topic")
         print("="*70)
 
-        self.get_logger().info('Nodo iniciado - control por topic /onrobot/finger_width_controller/commands')
+        self.get_logger().info('Node started - topic control /onrobot/finger_width_controller/commands')
 
     # ------------------------------------------------------------------
     def read_current_joints(self):
@@ -59,7 +59,7 @@ class UR5eGripperTrajectory(Node):
         self.destroy_subscription(sub)
 
         if joint_state[0] is None:
-            print("No se pudo leer /joint_states → usando q_home")
+            print("Could not read /joint_states → using q_home")
             return self.q_home.copy()
 
         name_to_idx = {n: i for i, n in enumerate(joint_state[0].name)}
@@ -70,7 +70,7 @@ class UR5eGripperTrajectory(Node):
             idx = name_to_idx.get(name, i)
             if idx < len(joint_state[0].position):
                 q[i] = joint_state[0].position[idx]
-        print(f"Posición actual leída: {q.round(4)}")
+        print(f"Read current position: {q.round(4)}")
         return q
 
     # ------------------------------------------------------------------
@@ -86,12 +86,12 @@ class UR5eGripperTrajectory(Node):
         dt = 1.0 / self.freq
         t_vec = np.arange(0, duration + dt, dt)
 
-        # Re-escalado por velocidad máxima
+        # Rescaling by maximum velocity
         max_vels = [np.max(np.abs(sp(t_vec, 1))) for sp in splines]
         scale = max(max_vels) / (self.max_vel * 0.9)
         if scale > 1.0:
             duration *= scale
-            print(f"Escalando trayectoria → {duration:.2f}s (vel máx: {max(max_vels):.2f} rad/s)")
+            print(f"Scaling trajectory → {duration:.2f}s (max vel: {max(max_vels):.2f} rad/s)")
             times_wp = [0.0, duration]
             splines = [CubicSpline(times_wp, [q_start[i], q_end[i]], bc_type=((1, 0.0), (1, 0.0))) for i in range(6)]
             t_vec = np.arange(0, duration + dt, dt)
@@ -117,16 +117,16 @@ class UR5eGripperTrajectory(Node):
         msg.points = points
         self.robot_pub.publish(msg)
         duration = points[-1].time_from_start.sec + points[-1].time_from_start.nanosec / 1e9
-        print(f"Publicado: {len(points)} puntos | Duración: {duration:.2f}s")
+        print(f"Published: {len(points)} points | Duration: {duration:.2f}s")
 
     # ------------------------------------------------------------------
-    # NUEVA FUNCIÓN: Control del gripper por topic
+    # NEW FUNCTION: Gripper control by topic
     # ------------------------------------------------------------------
     def set_gripper_width(self, width_meters: float, grip: bool = False):
         """
-        Envía comando al gripper 3FG15
-        width_meters: diámetro externo deseado en metros (ej: 0.05 = 50 mm)
-        grip: si True, hace "grip detect" (cierra hasta detectar pieza)
+        Sends command to the 3FG15 gripper
+        width_meters: desired external diameter in meters (e.g.: 0.05 = 50 mm)
+        grip: if True, does "grip detect" (closes until part is detected)
         """
         msg = Float64MultiArray()
         msg.data = [width_meters]
@@ -135,46 +135,46 @@ class UR5eGripperTrajectory(Node):
 
     # ------------------------------------------------------------------
     def print_gripper_status(self):
-        # Simplemente mostramos el último comando enviado (feedback opcional)
-        print("GRIPPER → controlado por topic ROS2                      ", end='\r')
+        # Simply show the last sent command (optional feedback)
+        print("GRIPPER → controlled by ROS2 topic                      ", end='\r')
 
     # ------------------------------------------------------------------
     def run_sequence(self):
         q_current = self.read_current_joints()
 
-        # 1. Ir a HOME
-        print("\n1. Moviéndose a HOME...")
+        # 1. Go to HOME
+        print("\n1. Moving to HOME...")
         points, _ = self.generate_spline_trajectory(q_current, self.q_home, self.t_to_home)
         self.publish_trajectory(points)
         time.sleep(self.t_to_home + 1.0)
 
-        # 2. Subir + GRIP a ~30 mm (con detección)
-        print("\n2. Subiendo en Z + GRIP (30 mm con detección)...")
+        # 2. Move up in Z + GRIP to ~30 mm (with detection)
+        print("\n2. Moving up in Z + GRIP (30 mm with detection)...")
         points, _ = self.generate_spline_trajectory(self.q_home, self.q_high, self.t_up)
         self.publish_trajectory(points)
-        self.set_gripper_width(0.03, grip=True)   # grip detect hasta 30 mm máx
+        self.set_gripper_width(0.03, grip=True)   # grip detect up to 30 mm max
         time.sleep(self.t_up + 0.5)
 
-        # 3. Bajar + asegurar agarre (opcional: cerrar más)
-        print("\n3. Bajando + reforzando agarre...")
+        # 3. Move down + secure grip (optional: close more)
+        print("\n3. Moving down + securing grip...")
         points, _ = self.generate_spline_trajectory(self.q_high, self.q_mid, self.t_down)
         self.publish_trajectory(points)
-        self.set_gripper_width(0.07, grip=True)   # grip detect hasta 70 mm (más margen)
+        self.set_gripper_width(0.07, grip=True)   # grip detect up to 70 mm (more margin)
         time.sleep(self.t_down + 0.5)
 
-        # 4. Volver a HOME + mantener agarre
-        print("\n4. Volviendo a HOME (manteniendo pieza)...")
+        # 4. Return to HOME + maintain grip
+        print("\n4. Returning to HOME (holding part)...")
         points, _ = self.generate_spline_trajectory(self.q_mid, self.q_home, self.t_back)
         self.publish_trajectory(points)
         time.sleep(self.t_back + 1.0)
 
-        # Opcional: soltar al final
-        print("\nSoltando pieza...")
-        self.set_gripper_width(0.150, grip=False)  # abrir completamente (~150 mm)
+        # Optional: release at the end
+        print("\nReleasing part...")
+        self.set_gripper_width(0.150, grip=False)  # fully open (~150 mm)
         time.sleep(2.0)
 
         print("\n" + "="*70)
-        print("SECUENCIA COMPLETADA CON ÉXITO")
+        print("SEQUENCE COMPLETED SUCCESSFULLY")
         print("="*70)
 
 # ==============================================================================
@@ -184,7 +184,7 @@ def main():
     try:
         node.run_sequence()
     except KeyboardInterrupt:
-        print("\nInterrumpido por usuario")
+        print("\nInterrupted by user")
     finally:
         node.destroy_node()
         rclpy.shutdown()

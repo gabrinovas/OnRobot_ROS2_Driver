@@ -258,30 +258,30 @@ def generate_launch_description():
         }]
     )
 
-    # NODOS BASE (siempre se lanzan)
+    # BASE NODES (always launched)
     base_nodes = [
         # Declare launch arguments
         *declared_arguments,
 
-        # Componentes esenciales de control (SIEMPRE)
+        # Essential control components (ALWAYS)
         ros2_control_node,
         joint_state_spawner,
         gripper_controller_spawner,
         gripper_status_node,
     ]
 
-    # NODOS OPCIONALES (solo si se solicitan)
+    # OPTIONAL NODES (only if requested)
     optional_nodes = []
     
-    # Solo añadir robot_state_publisher si se solicita
-    if launch_rsp:  # Evaluar la condición
+    # Only add robot_state_publisher if requested
+    if launch_rsp:  # Evaluate condition
         optional_nodes.append(robot_state_publisher_node)
     
-    # Solo añadir RViz si se solicita  
-    if launch_rviz:  # Evaluar la condición
+    # Only add RViz if requested  
+    if launch_rviz:  # Evaluate condition
         optional_nodes.append(rviz_node)
 
-    # Combinar todos los nodos
+    # Combine all nodes
     all_nodes = base_nodes + optional_nodes
 
     return LaunchDescription(all_nodes)

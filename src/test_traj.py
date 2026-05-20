@@ -11,11 +11,11 @@ import time
 class UR5eFullZTrajectory(Node):
     """
     UR5e: 
-    1. Lee posición actual
-    2. Va a HOME (suave)
-    3. Hace trayectoria Z: subir (0.7m) → bajar (0.6m)
-    4. Vuelve a HOME
-    Todo: 125 Hz, < 3.33 rad/s, spline cúbico, /scaled_joint_trajectory_controller
+    1. Read current position
+    2. Go to HOME (smoothly)
+    3. Perform Z trajectory: up (0.7m) → down (0.6m)
+    4. Return to HOME
+    All at: 125 Hz, < 3.33 rad/s, cubic spline, /scaled_joint_trajectory_controller
     """
 
     def __init__(self):
@@ -30,7 +30,7 @@ class UR5eFullZTrajectory(Node):
         self.max_vel = 1.5
         self.freq = 125
 
-        # TU HOME REAL (de /joint_states)
+        # YOUR REAL HOME (from /joint_states)
         self.q_home = np.array([
             1.582956,   # shoulder_pan_joint
             -1.850573,  # shoulder_lift_joint
@@ -40,7 +40,7 @@ class UR5eFullZTrajectory(Node):
             0.154681    # wrist_3_joint
         ])
 
-        # Waypoints Z (solo shoulder_lift y elbow cambian)
+        # Z Waypoints (only shoulder_lift and elbow change)
         self.q_high = np.array([1.582956, -2.2,  1.6, -1.442179, -1.519554, 0.154681])  # Z ≈ 0.70 m
         self.q_mid  = np.array([1.582956, -2,  1.7, -1.442179, -1.519554, 0.154681])  # Z ≈ 0.60 m
 
@@ -49,10 +49,10 @@ class UR5eFullZTrajectory(Node):
         self.t_down    = 2.5
         self.t_back    = 3.0
 
-        self.get_logger().info('Iniciando secuencia completa: HOME → Z → HOME')
+        self.get_logger().info('Starting full sequence: HOME → Z → HOME')
 
     def read_current_joints(self):
-        """Lee /joint_states una vez"""
+        """Read /joint_states once"""
         joint_state = [None]
 
         def callback(msg):
@@ -66,7 +66,7 @@ class UR5eFullZTrajectory(Node):
         self.destroy_subscription(sub)
 
         if joint_state[0] is None:
-            self.get_logger().error('No se pudo leer /joint_states')
+            self.get_logger().error('Could not read /joint_states')
             return self.q_home.copy()
 
         name_to_idx = {n: i for i, n in enumerate(joint_state[0].name)}
@@ -78,7 +78,7 @@ class UR5eFullZTrajectory(Node):
         return q
 
     def generate_spline_trajectory(self, q_start, q_end, duration):
-        """Spline cúbico con vel=0 en extremos"""
+        """Cubic spline with vel=0 at the ends"""
         times_wp = [0.0, duration]
         waypoints = [q_start, q_end]
 
@@ -115,36 +115,36 @@ class UR5eFullZTrajectory(Node):
         ]
         msg.points = points
         self.publisher_.publish(msg)
-        self.get_logger().info(f'Publicado: {len(points)} puntos')
+        self.get_logger().info(f'Published: {len(points)} points')
 
     def run_sequence(self):
         q_current = self.read_current_joints()
 
-        # 1. Ir a HOME
-        self.get_logger().info('1. Moviéndose a HOME...')
+        # 1. Go to HOME
+        self.get_logger().info('1. Moving to HOME...')
         points, _ = self.generate_spline_trajectory(q_current, self.q_home, self.t_to_home)
         self.publish_trajectory(points)
         time.sleep(self.t_to_home + 1.0)
 
-        # 2. Subir en Z
-        self.get_logger().info('2. Subiendo en Z...')
+        # 2. Move up in Z
+        self.get_logger().info('2. Moving up in Z...')
         points, _ = self.generate_spline_trajectory(self.q_home, self.q_high, self.t_up)
         self.publish_trajectory(points)
         time.sleep(self.t_up + 0.5)
 
-        # 3. Bajar en Z
-        self.get_logger().info('3. Bajando en Z...')
+        # 3. Move down in Z
+        self.get_logger().info('3. Moving down in Z...')
         points, _ = self.generate_spline_trajectory(self.q_high, self.q_mid, self.t_down)
         self.publish_trajectory(points)
         time.sleep(self.t_down + 0.5)
 
-        # 4. Volver a HOME
-        self.get_logger().info('4. Volviendo a HOME...')
+        # 4. Return to HOME
+        self.get_logger().info('4. Returning to HOME...')
         points, _ = self.generate_spline_trajectory(self.q_mid, self.q_home, self.t_back)
         self.publish_trajectory(points)
         time.sleep(self.t_back + 1.0)
 
-        self.get_logger().info('Secuencia completa finalizada.')
+        self.get_logger().info('Full sequence completed.')
 
 def main():
     rclpy.init()
