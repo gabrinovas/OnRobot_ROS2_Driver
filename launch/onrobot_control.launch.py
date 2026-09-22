@@ -24,6 +24,9 @@ def launch_setup(context, *args, **kwargs):
     prefix_val = context.perform_substitution(LaunchConfiguration('prefix'))
     ns_val = context.perform_substitution(LaunchConfiguration('ns'))
     use_fake_hardware_val = context.perform_substitution(LaunchConfiguration('use_fake_hardware'))
+    use_gripper_action_controller_val = (
+        context.perform_substitution(LaunchConfiguration('use_gripper_action_controller')).lower() == 'true'
+    )
     launch_rviz = LaunchConfiguration('launch_rviz')
     launch_rsp = LaunchConfiguration('launch_rsp')
 
@@ -111,12 +114,13 @@ def launch_setup(context, *args, **kwargs):
         output='screen'
     )
 
-    # Spawn the gripper controller
+    # Spawn the gripper controller (GripperActionController for MoveIt 2 or JointGroupPositionController)
+    controller_to_spawn = 'gripper_action_controller' if use_gripper_action_controller_val else 'finger_width_controller'
     gripper_controller_spawner = Node(
         namespace=ns_val,
         package='controller_manager',
         executable='spawner',
-        arguments=['finger_width_controller'],
+        arguments=[controller_to_spawn],
         output='screen'
     )
 
@@ -216,6 +220,12 @@ def generate_launch_description():
             'use_fake_hardware',
             default_value='false',
             description='Use fake hardware interface for testing.',
+        ),
+        DeclareLaunchArgument(
+            'use_gripper_action_controller',
+            default_value='true',
+            description='Spawn standard GripperActionController (MoveIt 2 compatible) instead of JointGroupPositionController.',
+            choices=['true', 'false'],
         ),
     ]
 

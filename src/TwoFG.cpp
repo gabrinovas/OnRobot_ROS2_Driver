@@ -239,6 +239,22 @@ float TwoFG::getWidth()
     }
 }
 
+float TwoFG::getForce()
+{
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_FORCE, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return static_cast<float>(regValue); // Force in Newtons per OnRobot Connectivity Guide
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read force." << std::endl;
+        return -1.0f;
+    }
+}
+
 std::vector<int> TwoFG::getStatus()
 {
     std::vector<int> status_list(4, 0);

@@ -8,7 +8,9 @@ namespace onrobot_driver
 ThreeFGHardwareInterface::ThreeFGHardwareInterface()
     : finger_width_state_(0.0),
       finger_width_velocity_(0.0),
+      finger_width_effort_(0.0),
       finger_width_command_(0.0),
+      finger_width_effort_command_(70.0), // Default force 70 N (50% of 140 N max for 3FG15)
       device_address_(65),
       use_fake_hardware_(false)
 {
@@ -206,7 +208,8 @@ std::vector<hardware_interface::StateInterface> ThreeFGHardwareInterface::export
 {
     std::vector<hardware_interface::StateInterface> state_interfaces;
     state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "position", &finger_width_state_));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_velocity_)); // Velocity state
+    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_velocity_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "effort", &finger_width_effort_));
     return state_interfaces;
 }
 
@@ -214,18 +217,29 @@ std::vector<hardware_interface::CommandInterface> ThreeFGHardwareInterface::expo
 {
     std::vector<hardware_interface::CommandInterface> command_interfaces;
     command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "position", &finger_width_command_));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "max_effort", &finger_width_effort_command_));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "effort", &finger_width_effort_command_));
     return command_interfaces;
 }
 
-hardware_interface::return_type ThreeFGHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration &)
+hardware_interface::return_type ThreeFGHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration &period)
 {
     std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+
+    double dt = period.seconds();
+    if (dt <= 0.0)
+    {
+        dt = 0.02; // Default 50 Hz fallback
+    }
 
     if (use_fake_hardware_)
     {
         // Simulate gripper movement for fake hardware
+        double prev_pos = finger_width_state_;
         float movement = (finger_width_command_ - finger_width_state_) * 0.1f;
         finger_width_state_ += movement;
+        finger_width_velocity_ = (finger_width_state_ - prev_pos) / dt;
+        finger_width_effort_ = (std::abs(finger_width_command_ - finger_width_state_) < 0.001) ? finger_width_effort_command_ : 0.0;
         return hardware_interface::return_type::OK;
     }
 
@@ -240,11 +254,19 @@ hardware_interface::return_type ThreeFGHardwareInterface::read(const rclcpp::Tim
         float current_diameter = gripper_->getWidth();
         if (current_diameter >= 0.0f)
         {
+            double prev_pos = finger_width_state_;
             finger_width_state_ = current_diameter;
+            finger_width_velocity_ = (finger_width_state_ - prev_pos) / dt;
         }
         else
         {
             RCLCPP_WARN(rclcpp::get_logger("ThreeFGHardwareInterface"), "Failed to read 3FG15 diameter");
+        }
+
+        float current_force = gripper_->getAppliedForce();
+        if (current_force >= 0.0f)
+        {
+            finger_width_effort_ = current_force;
         }
     }
     catch (const std::exception &e)
@@ -272,13 +294,26 @@ hardware_interface::return_type ThreeFGHardwareInterface::write(const rclcpp::Ti
     }
 
     // 3FG15 specific range validation (diameter: 0.0 - 0.150 m)
-    const double MAX_DIAMETER = 2.9;
-    if (finger_width_command_ < 0.0 || finger_width_command_ > MAX_DIAMETER)
+    double max_diameter = 0.150;
+    if (finger_width_command_ < 0.0 || finger_width_command_ > max_diameter)
     {
         RCLCPP_WARN(rclcpp::get_logger("ThreeFGHardwareInterface"),
                    "Command %.3f m out of range [0.0, %.3f] for 3FG15",
-                   finger_width_command_, MAX_DIAMETER);
+                   finger_width_command_, max_diameter);
         return hardware_interface::return_type::OK;
+    }
+
+    // Update target force if effort command is valid
+    if (finger_width_effort_command_ > 0.0)
+    {
+        try
+        {
+            gripper_->setTargetForce(static_cast<float>(finger_width_effort_command_));
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_WARN(rclcpp::get_logger("ThreeFGHardwareInterface"), "Failed to set target force: %s", e.what());
+        }
     }
 
     // Only send command if it has changed significantly

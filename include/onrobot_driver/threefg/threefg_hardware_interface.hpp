@@ -47,7 +47,9 @@ namespace onrobot_driver
         // Internal joint variables
         double finger_width_state_;
         double finger_width_velocity_;
+        double finger_width_effort_;
         double finger_width_command_;
+        double finger_width_effort_command_;
 
         // Connection parameters
         std::string connection_type_;

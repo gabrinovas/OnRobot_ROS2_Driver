@@ -28,6 +28,7 @@ public:
 
     // Read commands
     float getWidth();
+    float getForce();
     std::vector<int> getStatus();
     uint16_t getStatusRaw();
     

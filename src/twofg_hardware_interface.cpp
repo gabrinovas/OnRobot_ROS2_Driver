@@ -8,7 +8,9 @@ namespace onrobot_driver
 TwoFGHardwareInterface::TwoFGHardwareInterface()
     : finger_width_state_(0.0),
       finger_width_velocity_(0.0),
+      finger_width_effort_(0.0),
       finger_width_command_(0.0),
+      finger_width_effort_command_(35.0), // Default force 35 N (50% for 2FG7)
       device_address_(65),
       use_fake_hardware_(false)
 {
@@ -207,7 +209,8 @@ std::vector<hardware_interface::StateInterface> TwoFGHardwareInterface::export_s
 {
     std::vector<hardware_interface::StateInterface> state_interfaces;
     state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "position", &finger_width_state_));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_velocity_)); // Velocity state
+    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_velocity_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "effort", &finger_width_effort_));
     return state_interfaces;
 }
 
@@ -215,18 +218,30 @@ std::vector<hardware_interface::CommandInterface> TwoFGHardwareInterface::export
 {
     std::vector<hardware_interface::CommandInterface> command_interfaces;
     command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "position", &finger_width_command_));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "max_effort", &finger_width_effort_command_));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(prefix_ + "finger_width", "effort", &finger_width_effort_command_));
     return command_interfaces;
 }
 
-hardware_interface::return_type TwoFGHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration &)
+hardware_interface::return_type TwoFGHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration &period)
 {
     std::lock_guard<std::mutex> lock(hw_interface_mutex_);
+
+    double dt = period.seconds();
+    if (dt <= 0.0)
+    {
+        dt = 0.02; // Default 50 Hz fallback
+    }
 
     if (use_fake_hardware_)
     {
         // Simulate gripper movement for fake hardware
+        double prev_pos = finger_width_state_;
         float movement = (finger_width_command_ - finger_width_state_) * 0.1f;
         finger_width_state_ += movement;
+        finger_width_velocity_ = (finger_width_state_ - prev_pos) / dt;
+        // In fake mode, simulate holding force when command matches state
+        finger_width_effort_ = (std::abs(finger_width_command_ - finger_width_state_) < 0.001) ? finger_width_effort_command_ : 0.0;
         return hardware_interface::return_type::OK;
     }
 
@@ -241,11 +256,19 @@ hardware_interface::return_type TwoFGHardwareInterface::read(const rclcpp::Time 
         float current_width = gripper_->getWidth();
         if (current_width >= 0.0f)
         {
+            double prev_pos = finger_width_state_;
             finger_width_state_ = current_width;
+            finger_width_velocity_ = (finger_width_state_ - prev_pos) / dt;
         }
         else
         {
             RCLCPP_WARN(rclcpp::get_logger("TwoFGHardwareInterface"), "Failed to read %s width", onrobot_type_.c_str());
+        }
+
+        float current_force = gripper_->getForce();
+        if (current_force >= 0.0f)
+        {
+            finger_width_effort_ = current_force;
         }
     }
     catch (const std::exception &e)
@@ -282,7 +305,20 @@ hardware_interface::return_type TwoFGHardwareInterface::write(const rclcpp::Time
         return hardware_interface::return_type::OK;
     }
 
-    // Only send command if it has changed significantly
+    // Update target force if effort command is valid
+    if (finger_width_effort_command_ > 0.0)
+    {
+        try
+        {
+            gripper_->setTargetForce(static_cast<float>(finger_width_effort_command_));
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_WARN(rclcpp::get_logger("TwoFGHardwareInterface"), "Failed to set target force: %s", e.what());
+        }
+    }
+
+    // Only send position command if it has changed significantly
     if (std::abs(finger_width_command_ - finger_width_state_) > 0.001)
     {
         try

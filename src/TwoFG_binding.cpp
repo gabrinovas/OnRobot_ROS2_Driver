@@ -11,6 +11,7 @@ PYBIND11_MODULE(TwoFG, m) {
         .def(py::init<const std::string&, const std::string&, int>(),
              py::arg("type"), py::arg("device"), py::arg("device_address"))
         .def("getWidth", &TwoFG::getWidth)
+        .def("getForce", &TwoFG::getForce)
         .def("getStatus", &TwoFG::getStatus)
         .def("getStatusRaw", &TwoFG::getStatusRaw)
         .def("setTargetWidth", &TwoFG::setTargetWidth)
