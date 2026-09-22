@@ -5,21 +5,38 @@
 #include <thread>
 
 ThreeFG::ThreeFG(const std::string &ip, int port, int device_address)
+    : ThreeFG(ip, port, device_address, nullptr)
+{
+}
+
+ThreeFG::ThreeFG(const std::string &ip, int port, int device_address,
+                 std::function<bool()> keep_running)
     : device_address_(device_address)
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
 
-    // Attempt to establish TCP connection, retrying until successful
-    while (true) {
+    // Attempt to establish TCP connection, retrying every 500ms until successful or cancelled
+    int retry_count = 0;
+    while (!keep_running || keep_running()) {
         try {
             connection = std::make_unique<TCPConnectionWrapper>(ip, port);
             break;
         } catch (const std::exception &ex) {
-            std::cerr << "Failed to establish TCP connection: " << ex.what()
-                      << ". Retrying in 1 second..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (++retry_count % 10 == 1) {
+                std::cerr << "Waiting for OnRobot 3FG TCP connection at "
+                          << ip << ":" << port << " (" << ex.what()
+                          << "). Retrying every 500ms..." << std::endl;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
+    }
+
+    if (keep_running && !keep_running()) {
+        throw std::runtime_error("TCP connection attempt aborted due to shutdown request.");
+    }
+    if (!connection) {
+        throw std::runtime_error("Failed to establish TCP connection to " + ip + ":" + std::to_string(port));
     }
 
     initParams();
@@ -28,21 +45,38 @@ ThreeFG::ThreeFG(const std::string &ip, int port, int device_address)
 }
 
 ThreeFG::ThreeFG(const std::string &device, int device_address)
+    : ThreeFG(device, device_address, nullptr)
+{
+}
+
+ThreeFG::ThreeFG(const std::string &device, int device_address,
+                 std::function<bool()> keep_running)
     : device_address_(device_address)
 {
     if (device.empty())
         throw std::invalid_argument("Please provide a serial device for connection.");
 
-    // Attempt to establish Serial connection, retrying until successful
-    while (true) {
+    // Attempt to establish Serial connection, retrying every 500ms until successful or cancelled
+    int retry_count = 0;
+    while (!keep_running || keep_running()) {
         try {
             connection = std::make_unique<SerialConnectionWrapper>(device);
             break;
         } catch (const std::exception &ex) {
-            std::cerr << "Failed to establish Serial connection: " << ex.what()
-                      << ". Retrying in 1 second..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (++retry_count % 10 == 1) {
+                std::cerr << "Waiting for OnRobot 3FG Serial connection on "
+                          << device << " (" << ex.what()
+                          << "). Retrying every 500ms..." << std::endl;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
+    }
+
+    if (keep_running && !keep_running()) {
+        throw std::runtime_error("Serial connection attempt aborted due to shutdown request.");
+    }
+    if (!connection) {
+        throw std::runtime_error("Failed to establish Serial connection on " + device);
     }
 
     initParams();

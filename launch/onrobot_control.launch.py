@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
-from launch_ros.substitutions import FindPackageShare
-
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import (
     Command,
@@ -12,102 +8,24 @@ from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
 )
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
+from launch_ros.substitutions import FindPackageShare
 
-def generate_launch_description():
-    # Launch configuration variables
-    onrobot_type = LaunchConfiguration('onrobot_type')
-    connection_type = LaunchConfiguration('connection_type')
-    device = LaunchConfiguration('device')
-    ip_address = LaunchConfiguration('ip_address')
-    port = LaunchConfiguration('port')
-    device_address = LaunchConfiguration('device_address')
-    prefix = LaunchConfiguration('prefix')
-    ns = LaunchConfiguration('ns')
+
+def launch_setup(context, *args, **kwargs):
+    # Retrieve configuration values resolved dynamically from context
+    onrobot_type_val = context.perform_substitution(LaunchConfiguration('onrobot_type'))
+    connection_type_val = context.perform_substitution(LaunchConfiguration('connection_type'))
+    device_val = context.perform_substitution(LaunchConfiguration('device'))
+    ip_address_val = context.perform_substitution(LaunchConfiguration('ip_address'))
+    port_val = context.perform_substitution(LaunchConfiguration('port'))
+    device_address_val = context.perform_substitution(LaunchConfiguration('device_address'))
+    prefix_val = context.perform_substitution(LaunchConfiguration('prefix'))
+    ns_val = context.perform_substitution(LaunchConfiguration('ns'))
+    use_fake_hardware_val = context.perform_substitution(LaunchConfiguration('use_fake_hardware'))
     launch_rviz = LaunchConfiguration('launch_rviz')
     launch_rsp = LaunchConfiguration('launch_rsp')
-    use_fake_hardware = LaunchConfiguration('use_fake_hardware')
-
-    # Declare launch arguments
-    declared_arguments = []
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'onrobot_type',
-            description='Type of OnRobot gripper.',
-            choices=['rg2', 'rg6', '2fg7', '2fg14', '3fg15'],
-            default_value='rg2',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'connection_type',
-            description='Connection type for the OnRobot gripper. TCP for the Control Box. Serial for the UR Tool I/O (RS485).',
-            choices=['serial', 'tcp'],
-            default_value='tcp',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'device',
-            default_value='/tmp/ttyUR',
-            description='Device name for the serial connection. Only used when connection_type is serial.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'ip_address',
-            default_value='192.168.1.1',
-            description='IP address for the TCP connection. Only used when connection_type is tcp.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'port',
-            default_value='502',
-            description='Port for the TCP connection. Only used when connection_type is tcp.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'device_address',
-            default_value='65',
-            description='Modbus device address for the gripper. Default is 65 for single gripper setups.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'prefix',
-            default_value='',
-            description='Prefix for joint names (useful for multi-robot setups).',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'ns',
-            default_value='onrobot',
-            description='Namespace for the nodes. Useful for separate gripper and robot control setups.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'launch_rviz',
-            default_value='true',
-            description='Launch RViz for visualization.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'launch_rsp',
-            default_value='true',
-            description='Launch robot state publisher.',
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            'use_fake_hardware',
-            default_value='false',
-            description='Use fake hardware interface for testing.',
-        )
-    )
 
     # Path to the xacro file in the onrobot_description package
     xacro_file = PathJoinSubstitution([
@@ -122,72 +40,53 @@ def generate_launch_description():
         ' ',
         xacro_file,
         ' ',
-        'onrobot_type:=', onrobot_type,
+        'onrobot_type:=', onrobot_type_val,
         ' ',
-        'connection_type:=', connection_type,
+        'connection_type:=', connection_type_val,
         ' ',
-        'device:=', device,
+        'device:=', device_val,
         ' ',
-        'ip_address:=', ip_address,
+        'ip_address:=', ip_address_val,
         ' ',
-        'port:=', port,
+        'port:=', port_val,
         ' ',
-        'device_address:=', device_address,
+        'device_address:=', device_address_val,
         ' ',
-        'prefix:=', prefix,
+        'prefix:=', prefix_val,
         ' ',
-        'use_fake_hardware:=', use_fake_hardware,
+        'use_fake_hardware:=', use_fake_hardware_val,
         ' ',
         'name:=onrobot'
     ])
-    
+
     # Use ParameterValue to properly handle the robot description string
     robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
 
-    # Determine which controller config to use based on gripper type
-    def get_controller_config():
-        onrobot_type_str = str(onrobot_type)
-        if onrobot_type_str.startswith('2fg'):
-            return PathJoinSubstitution([
-                FindPackageShare('onrobot_driver'),
-                'config',
-                'twofg_controllers.yaml'
-            ])
-        elif onrobot_type_str == '3fg15':
-            return PathJoinSubstitution([
-                FindPackageShare('onrobot_driver'),
-                'config',
-                'threefg_controllers.yaml'
-            ])
-        else:  # rg2, rg6
-            return PathJoinSubstitution([
-                FindPackageShare('onrobot_driver'),
-                'config',
-                'rg_controllers.yaml'
-            ])
+    # Determine which controller config and hardware interface to use based on resolved gripper type
+    if onrobot_type_val.startswith('2fg'):
+        controller_config_filename = 'twofg_controllers.yaml'
+        hw_interface_plugin = 'onrobot_driver::TwoFGHardwareInterface'
+    elif onrobot_type_val.startswith('3fg'):
+        controller_config_filename = 'threefg_controllers.yaml'
+        hw_interface_plugin = 'onrobot_driver::ThreeFGHardwareInterface'
+    else:  # rg2, rg6
+        controller_config_filename = 'rg_controllers.yaml'
+        hw_interface_plugin = 'onrobot_driver::RGHardwareInterface'
 
-    # Determine which hardware interface to use based on gripper type
-    def get_hardware_interface():
-        onrobot_type_str = str(onrobot_type)
-        if onrobot_type_str.startswith('2fg'):
-            return 'onrobot_driver::TwoFGHardwareInterface'
-        elif onrobot_type_str == '3fg15':
-            return 'onrobot_driver::ThreeFGHardwareInterface'
-        else:  # rg2, rg6
-            return 'onrobot_driver::RGHardwareInterface'
-
-    # Path to the appropriate controller configuration file
-    controller_config_file = get_controller_config()
+    controller_config_file = PathJoinSubstitution([
+        FindPackageShare('onrobot_driver'),
+        'config',
+        controller_config_filename
+    ])
     controller_config = ParameterFile(controller_config_file, allow_substs=True)
 
     # Add hardware interface parameter to robot description
-    hardware_interface_plugin = get_hardware_interface()
     robot_description_with_hw = robot_description.copy()
-    robot_description_with_hw['hardware_interface_plugin'] = hardware_interface_plugin
+    robot_description_with_hw['hardware_interface_plugin'] = hw_interface_plugin
 
     # Launch the ros2_control node
     ros2_control_node = Node(
-        namespace=ns,
+        namespace=ns_val,
         package='controller_manager',
         executable='ros2_control_node',
         parameters=[robot_description_with_hw, controller_config],
@@ -196,7 +95,7 @@ def generate_launch_description():
 
     # Launch the robot state publisher
     robot_state_publisher_node = Node(
-        namespace=ns,
+        namespace=ns_val,
         package='robot_state_publisher',
         condition=IfCondition(launch_rsp),
         executable='robot_state_publisher',
@@ -204,29 +103,21 @@ def generate_launch_description():
         output='both'
     )
 
-    # Spawn the joint state and gripper controllers
+    # Spawn the joint state broadcaster
     joint_state_spawner = Node(
-        namespace=ns,
+        namespace=ns_val,
         package='controller_manager',
         executable='spawner',
         arguments=['joint_state_broadcaster'],
         output='screen'
     )
 
-    # Determine which controller to spawn based on gripper type
-    def get_controller_name():
-        onrobot_type_str = str(onrobot_type)
-        if onrobot_type_str.startswith('2fg') or onrobot_type_str == '3fg15':
-            return 'finger_width_controller'
-        else:  # rg2, rg6
-            return 'finger_width_controller'  # Use same name as your functional config
-
-    controller_name = get_controller_name()
+    # Spawn the gripper controller
     gripper_controller_spawner = Node(
-        namespace=ns,
+        namespace=ns_val,
         package='controller_manager',
         executable='spawner',
-        arguments=[controller_name],
+        arguments=['finger_width_controller'],
         output='screen'
     )
 
@@ -237,7 +128,7 @@ def generate_launch_description():
         'view_onrobot.rviz'
     ])
     rviz_node = Node(
-        namespace=ns,
+        namespace=ns_val,
         package='rviz2',
         condition=IfCondition(launch_rviz),
         executable='rviz2',
@@ -246,45 +137,91 @@ def generate_launch_description():
         arguments=['-d', rviz_config_file],
     )
 
-    # Optional: Add a node to monitor gripper status (for all gripper types)
+    # Status monitor node
     gripper_status_node = Node(
-        namespace=ns,
+        namespace=ns_val,
         package='onrobot_driver',
         executable='gripper_status_monitor',
         name='gripper_status_monitor',
         output='screen',
         parameters=[{
-            'onrobot_type': onrobot_type,
+            'onrobot_type': onrobot_type_val,
         }]
     )
 
-    # BASE NODES (always launched)
-    base_nodes = [
-        # Declare launch arguments
-        *declared_arguments,
-
-        # Essential control components (ALWAYS)
+    return [
         ros2_control_node,
+        robot_state_publisher_node,
         joint_state_spawner,
         gripper_controller_spawner,
         gripper_status_node,
+        rviz_node,
     ]
 
-    # OPTIONAL NODES (only if requested)
-    optional_nodes = []
-    
-    # Only add robot_state_publisher if requested
-    if launch_rsp:  # Evaluate condition
-        optional_nodes.append(robot_state_publisher_node)
-    
-    # Only add RViz if requested  
-    if launch_rviz:  # Evaluate condition
-        optional_nodes.append(rviz_node)
 
-    # Combine all nodes
-    all_nodes = base_nodes + optional_nodes
+def generate_launch_description():
+    declared_arguments = [
+        DeclareLaunchArgument(
+            'onrobot_type',
+            default_value='rg2',
+            description='Type of OnRobot gripper.',
+            choices=['rg2', 'rg6', '2fg7', '2fg14', '3fg15', '3fg25'],
+        ),
+        DeclareLaunchArgument(
+            'connection_type',
+            default_value='tcp',
+            description='Connection type for the OnRobot gripper. TCP for Compute Box. Serial for UR Tool I/O (RS485).',
+            choices=['serial', 'tcp'],
+        ),
+        DeclareLaunchArgument(
+            'device',
+            default_value='/tmp/ttyUR',
+            description='Device name for the serial connection (e.g. /tmp/ttyUR or /dev/ttyUSB0). Only used when connection_type is serial.',
+        ),
+        DeclareLaunchArgument(
+            'ip_address',
+            default_value='192.168.1.1',
+            description='IP address for the TCP connection. Only used when connection_type is tcp.',
+        ),
+        DeclareLaunchArgument(
+            'port',
+            default_value='502',
+            description='Port for the TCP connection. Only used when connection_type is tcp.',
+        ),
+        DeclareLaunchArgument(
+            'device_address',
+            default_value='65',
+            description='Modbus device address for the gripper. Default is 65 (0x41) for single gripper setups.',
+        ),
+        DeclareLaunchArgument(
+            'prefix',
+            default_value='',
+            description='Prefix for joint names (useful for multi-robot setups).',
+        ),
+        DeclareLaunchArgument(
+            'ns',
+            default_value='onrobot',
+            description='Namespace for the nodes. Useful for separate gripper and robot control setups.',
+        ),
+        DeclareLaunchArgument(
+            'launch_rviz',
+            default_value='true',
+            description='Launch RViz for visualization.',
+        ),
+        DeclareLaunchArgument(
+            'launch_rsp',
+            default_value='true',
+            description='Launch robot state publisher.',
+        ),
+        DeclareLaunchArgument(
+            'use_fake_hardware',
+            default_value='false',
+            description='Use fake hardware interface for testing.',
+        ),
+    ]
 
-    return LaunchDescription(all_nodes)
+    return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
+
 
 if __name__ == '__main__':
     generate_launch_description()

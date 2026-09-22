@@ -5,6 +5,12 @@
 #include <thread>
 
 RG::RG(const std::string &type, const std::string &ip, int port, int device_address)
+    : RG(type, ip, port, device_address, nullptr)
+{
+}
+
+RG::RG(const std::string &type, const std::string &ip, int port, int device_address,
+       std::function<bool()> keep_running)
     : type(type), device_address_(device_address)
 {
     if (ip.empty())
@@ -12,16 +18,27 @@ RG::RG(const std::string &type, const std::string &ip, int port, int device_addr
     if (type != "rg2" && type != "rg6")
         throw std::invalid_argument("Please specify either 'rg2' or 'rg6'.");
 
-    // Attempt to establish TCP connection, retrying until successful
-    while (true) {
+    // Attempt to establish TCP connection, retrying every 500ms until successful or cancelled
+    int retry_count = 0;
+    while (!keep_running || keep_running()) {
         try {
             connection = std::make_unique<TCPConnectionWrapper>(ip, port);
             break;
         } catch (const std::exception &ex) {
-            std::cerr << "Failed to establish TCP connection: " << ex.what()
-                      << ". Retrying in 1 second..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (++retry_count % 10 == 1) {
+                std::cerr << "Waiting for OnRobot " << type << " TCP connection at "
+                          << ip << ":" << port << " (" << ex.what()
+                          << "). Retrying every 500ms..." << std::endl;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
+    }
+
+    if (keep_running && !keep_running()) {
+        throw std::runtime_error("TCP connection attempt aborted due to shutdown request.");
+    }
+    if (!connection) {
+        throw std::runtime_error("Failed to establish TCP connection to " + ip + ":" + std::to_string(port));
     }
 
     initParams();
@@ -30,6 +47,12 @@ RG::RG(const std::string &type, const std::string &ip, int port, int device_addr
 }
 
 RG::RG(const std::string &type, const std::string &device, int device_address)
+    : RG(type, device, device_address, nullptr)
+{
+}
+
+RG::RG(const std::string &type, const std::string &device, int device_address,
+       std::function<bool()> keep_running)
     : type(type), device_address_(device_address)
 {
     if (device.empty())
@@ -37,16 +60,27 @@ RG::RG(const std::string &type, const std::string &device, int device_address)
     if (type != "rg2" && type != "rg6")
         throw std::invalid_argument("Please specify either 'rg2' or 'rg6'.");
 
-    // Attempt to establish Serial connection, retrying until successful
-    while (true) {
+    // Attempt to establish Serial connection, retrying every 500ms until successful or cancelled
+    int retry_count = 0;
+    while (!keep_running || keep_running()) {
         try {
             connection = std::make_unique<SerialConnectionWrapper>(device);
             break;
         } catch (const std::exception &ex) {
-            std::cerr << "Failed to establish Serial connection: " << ex.what()
-                      << ". Retrying in 1 second..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (++retry_count % 10 == 1) {
+                std::cerr << "Waiting for OnRobot " << type << " Serial connection on "
+                          << device << " (" << ex.what()
+                          << "). Retrying every 500ms..." << std::endl;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
+    }
+
+    if (keep_running && !keep_running()) {
+        throw std::runtime_error("Serial connection attempt aborted due to shutdown request.");
+    }
+    if (!connection) {
+        throw std::runtime_error("Failed to establish Serial connection on " + device);
     }
 
     initParams();

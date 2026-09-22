@@ -46,9 +46,10 @@ namespace onrobot_driver  // Change namespace to match others
         std::string prefix_;
         hardware_interface::HardwareInfo info_;  // Store hardware info for parameter access
 
-        // Internal joint variable (position) in SI units (metres).
-        double finger_width_state_;   // measured state (m)
-        double finger_width_command_; // commanded position (m)
+        // Internal joint variable (position and velocity) in SI units (metres, m/s).
+        double finger_width_state_;    // measured state (m)
+        double finger_width_velocity_; // velocity state (m/s)
+        double finger_width_command_;  // commanded position (m)
 
         // Connection parameters from hardware_info.
         std::string onrobot_type_;

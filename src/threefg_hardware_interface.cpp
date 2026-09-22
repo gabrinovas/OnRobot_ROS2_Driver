@@ -7,6 +7,7 @@ namespace onrobot_driver
 
 ThreeFGHardwareInterface::ThreeFGHardwareInterface()
     : finger_width_state_(0.0),
+      finger_width_velocity_(0.0),
       finger_width_command_(0.0),
       device_address_(65),
       use_fake_hardware_(false)
@@ -129,14 +130,14 @@ hardware_interface::CallbackReturn ThreeFGHardwareInterface::on_configure(const 
             RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), 
                        "Creating TCP connection to %s:%d, device address: %d", 
                        ip_address_.c_str(), port_, device_address_);
-            gripper_ = std::unique_ptr<ThreeFG>(new ThreeFG(ip_address_, port_, device_address_));
+            gripper_ = std::unique_ptr<ThreeFG>(new ThreeFG(ip_address_, port_, device_address_, []() { return rclcpp::ok(); }));
         }
         else if (connection_type_ == "serial")
         {
             RCLCPP_INFO(rclcpp::get_logger("ThreeFGHardwareInterface"), 
                        "Creating Serial connection to %s, device address: %d", 
                        device_.c_str(), device_address_);
-            gripper_ = std::unique_ptr<ThreeFG>(new ThreeFG(device_, device_address_));
+            gripper_ = std::unique_ptr<ThreeFG>(new ThreeFG(device_, device_address_, []() { return rclcpp::ok(); }));
         }
 
         // Test connection by reading initial diameter
@@ -205,7 +206,7 @@ std::vector<hardware_interface::StateInterface> ThreeFGHardwareInterface::export
 {
     std::vector<hardware_interface::StateInterface> state_interfaces;
     state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "position", &finger_width_state_));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_state_)); // Dummy velocity
+    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_velocity_)); // Velocity state
     return state_interfaces;
 }
 

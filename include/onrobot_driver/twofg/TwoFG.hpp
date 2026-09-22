@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <thread>
+#include <functional>
 
 #include "../common/IModbusConnection.hpp"
 #include "../common/TCPConnectionWrapper.hpp"
@@ -18,7 +19,11 @@ class TwoFG {
 public:
     // Remove default parameters to avoid ambiguity
     TwoFG(const std::string &type, const std::string &ip, int port, int device_address);
+    TwoFG(const std::string &type, const std::string &ip, int port, int device_address,
+          std::function<bool()> keep_running);
     TwoFG(const std::string &type, const std::string &device, int device_address);
+    TwoFG(const std::string &type, const std::string &device, int device_address,
+          std::function<bool()> keep_running);
     ~TwoFG();
 
     // Read commands
