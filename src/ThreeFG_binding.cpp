@@ -42,5 +42,7 @@ PYBIND11_MODULE(ThreeFG, m) {
         .def("setGripType", &ThreeFG::setGripType)
         .def("setFingerLength", &ThreeFG::setFingerLength)
         .def("setFingerPosition", &ThreeFG::setFingerPosition)
-        .def("setFingertipOffset", &ThreeFG::setFingertipOffset);
+        .def("setFingertipOffset", &ThreeFG::setFingertipOffset)
+        .def("resetToolPower", &ThreeFG::resetToolPower,
+             py::arg("compute_box_address") = 63);
 }

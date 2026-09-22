@@ -20,8 +20,10 @@ PYBIND11_MODULE(TwoFG, m) {
         .def("gripExternal", &TwoFG::gripExternal)
         .def("gripInternal", &TwoFG::gripInternal)
         .def("stop", &TwoFG::stop)
-        .def("moveGripper", &TwoFG::moveGripper,
+        .def("moveGripper", static_cast<void (TwoFG::*)(float, bool)>(&TwoFG::moveGripper),
              py::arg("width_val"), py::arg("external_grip") = true)
         .def("getMinWidth", &TwoFG::getMinWidth)
-        .def("getMaxWidth", &TwoFG::getMaxWidth);
+        .def("getMaxWidth", &TwoFG::getMaxWidth)
+        .def("resetToolPower", &TwoFG::resetToolPower,
+             py::arg("compute_box_address") = 63);
 }

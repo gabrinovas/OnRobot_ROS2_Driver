@@ -15,12 +15,16 @@
 
   <depend>control_msgs</depend>
   <depend>controller_manager</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>diagnostic_updater</depend>
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_lifecycle</depend>
   <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>onrobot_description</depend>
   <depend>pybind11</depend>
   <exec_depend>gripper_controllers</exec_depend>

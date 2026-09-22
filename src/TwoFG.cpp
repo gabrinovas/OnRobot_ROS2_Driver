@@ -1,8 +1,4 @@
 #include "onrobot_driver/twofg/TwoFG.hpp"
-#include "onrobot_driver/common/TCPConnectionWrapper.hpp"
-#include "onrobot_driver/common/SerialConnectionWrapper.hpp"
-#include <chrono>
-#include <thread>
 
 TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int device_address)
     : TwoFG(type, ip, port, device_address, nullptr)
@@ -11,36 +7,14 @@ TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int devic
 
 TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int device_address,
              std::function<bool()> keep_running)
-    : type(type), device_address_(device_address)
+    : onrobot_driver::OnRobotGripperBase(device_address), type(type)
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
     if (type != "2fg7")
         throw std::invalid_argument("Please specify '2fg7'.");
 
-    // Attempt to establish TCP connection, retrying every 500ms until successful or cancelled
-    int retry_count = 0;
-    while (!keep_running || keep_running()) {
-        try {
-            connection = std::make_unique<TCPConnectionWrapper>(ip, port);
-            break;
-        } catch (const std::exception &ex) {
-            if (++retry_count % 10 == 1) {
-                std::cerr << "Waiting for OnRobot " << type << " TCP connection at "
-                          << ip << ":" << port << " (" << ex.what()
-                          << "). Retrying every 500ms..." << std::endl;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-    }
-
-    if (keep_running && !keep_running()) {
-        throw std::runtime_error("TCP connection attempt aborted due to shutdown request.");
-    }
-    if (!connection) {
-        throw std::runtime_error("Failed to establish TCP connection to " + ip + ":" + std::to_string(port));
-    }
-
+    connectTCP(ip, port, keep_running);
     initParams();
     setTargetForce(default_force_);
     setTargetSpeed(default_speed_);
@@ -53,36 +27,14 @@ TwoFG::TwoFG(const std::string &type, const std::string &device, int device_addr
 
 TwoFG::TwoFG(const std::string &type, const std::string &device, int device_address,
              std::function<bool()> keep_running)
-    : type(type), device_address_(device_address)
+    : onrobot_driver::OnRobotGripperBase(device_address), type(type)
 {
     if (device.empty())
         throw std::invalid_argument("Please provide a serial device for connection.");
     if (type != "2fg7")
         throw std::invalid_argument("Please specify '2fg7'.");
 
-    // Attempt to establish Serial connection, retrying every 500ms until successful or cancelled
-    int retry_count = 0;
-    while (!keep_running || keep_running()) {
-        try {
-            connection = std::make_unique<SerialConnectionWrapper>(device);
-            break;
-        } catch (const std::exception &ex) {
-            if (++retry_count % 10 == 1) {
-                std::cerr << "Waiting for OnRobot " << type << " Serial connection on "
-                          << device << " (" << ex.what()
-                          << "). Retrying every 500ms..." << std::endl;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        }
-    }
-
-    if (keep_running && !keep_running()) {
-        throw std::runtime_error("Serial connection attempt aborted due to shutdown request.");
-    }
-    if (!connection) {
-        throw std::runtime_error("Failed to establish Serial connection on " + device);
-    }
-
+    connectSerial(device, keep_running);
     initParams();
     setTargetForce(default_force_);
     setTargetSpeed(default_speed_);
@@ -90,8 +42,7 @@ TwoFG::TwoFG(const std::string &type, const std::string &device, int device_addr
 
 TwoFG::~TwoFG()
 {
-    if (connection)
-        connection->close();
+    close();
 }
 
 void TwoFG::initParams()
@@ -101,29 +52,6 @@ void TwoFG::initParams()
     
     default_force_ = max_force_ / 2;
     default_speed_ = 50.0f; // 50% speed
-}
-
-MB::ModbusResponse TwoFG::sendRequest(const MB::ModbusRequest &req)
-{
-    try
-    {
-        return connection->sendRequest(req);
-    }
-    catch (const MB::ModbusException &ex)
-    {
-        std::cerr << "Modbus exception: " << ex.what() << std::endl;
-        throw;
-    }
-}
-
-float TwoFG::fromTenthMM(uint16_t tenth_mm)
-{
-    return static_cast<float>(tenth_mm) / 10000.0f; // Convert 1/10 mm to meters
-}
-
-uint16_t TwoFG::toTenthMM(float meters)
-{
-    return static_cast<uint16_t>(meters * 10000.0f); // Convert meters to 1/10 mm
 }
 
 void TwoFG::moveGripper(float width_val, bool external_grip)
@@ -283,12 +211,17 @@ uint16_t TwoFG::getStatusRaw()
     }
 }
 
-float TwoFG::getMinWidth()
+float TwoFG::getMinWidth() const
 {
     return MIN_WIDTH;
 }
 
-float TwoFG::getMaxWidth()
+float TwoFG::getMaxWidth() const
 {
     return max_width_;
+}
+
+float TwoFG::getMaxForce() const
+{
+    return max_force_;
 }

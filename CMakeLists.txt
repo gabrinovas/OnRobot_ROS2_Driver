@@ -8,12 +8,16 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(controller_manager REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
+find_package(diagnostic_updater REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
 # Include directories
 include_directories(
@@ -45,6 +49,8 @@ add_subdirectory(include/onrobot_driver/Modbus)
 # =============================================================================
 add_library(onrobot_twofg_driver_plugin
   SHARED
+  src/OnRobotGripperBase.cpp
+  src/OnRobotHardwareInterfaceBase.cpp
   src/TwoFG.cpp
   src/twofg_hardware_interface.cpp
 )
@@ -68,6 +74,8 @@ ament_target_dependencies(onrobot_twofg_driver_plugin
 # =============================================================================
 add_library(onrobot_threefg_driver_plugin
   SHARED
+  src/OnRobotGripperBase.cpp
+  src/OnRobotHardwareInterfaceBase.cpp
   src/ThreeFG.cpp
   src/threefg_hardware_interface.cpp
 )
@@ -92,9 +100,16 @@ ament_target_dependencies(onrobot_threefg_driver_plugin
 add_executable(gripper_status_monitor
   src/gripper_status_monitor.cpp
 )
+target_link_libraries(gripper_status_monitor
+  Modbus
+)
 ament_target_dependencies(gripper_status_monitor
+  diagnostic_msgs
+  diagnostic_updater
   rclcpp
+  sensor_msgs
   std_msgs
+  std_srvs
 )
 
 # =============================================================================
@@ -110,6 +125,7 @@ message(STATUS "Python3 interpreter: ${Python3_EXECUTABLE}")
 
 # Create TwoFG Python module
 pybind11_add_module(TwoFG
+  src/OnRobotGripperBase.cpp
   src/TwoFG.cpp
   src/TwoFG_binding.cpp
 )
@@ -128,6 +144,7 @@ target_link_libraries(TwoFG
 
 # Create ThreeFG Python module
 pybind11_add_module(ThreeFG
+  src/OnRobotGripperBase.cpp
   src/ThreeFG.cpp
   src/ThreeFG_binding.cpp
 )

@@ -1,51 +1,43 @@
 #pragma once
+
 #include <memory>
 #include <vector>
 #include <string>
-#include <stdexcept>
-#include <iostream>
-#include <thread>
 #include <functional>
 
-#include "../common/IModbusConnection.hpp"
-#include "../common/TCPConnectionWrapper.hpp"
-#include "../common/SerialConnectionWrapper.hpp"
-#include "MB/modbusRequest.hpp"
-#include "MB/modbusResponse.hpp"
-#include "MB/modbusException.hpp"
-#include "MB/modbusUtils.hpp"
+#include "../common/OnRobotGripperBase.hpp"
 
-class ThreeFG {
+class ThreeFG : public onrobot_driver::OnRobotGripperBase {
 public:
-    // Remove default parameters to avoid ambiguity
     ThreeFG(const std::string &ip, int port, int device_address);
     ThreeFG(const std::string &ip, int port, int device_address,
             std::function<bool()> keep_running);
     ThreeFG(const std::string &device, int device_address);
     ThreeFG(const std::string &device, int device_address,
             std::function<bool()> keep_running);
-    ~ThreeFG();
+    ~ThreeFG() override;
 
     // Read commands
-    float getWidth();
-    std::vector<int> getStatus();
-    uint16_t getStatusRaw();
+    float getWidth() override;
+    float getForce() override { return getAppliedForce(); }
+    uint16_t getStatusRaw() override;
    
     // Write commands
-    void setTargetForce(float force_val);
-    void setTargetWidth(float width_val);
-    void setTargetSpeed(float speed_val);
+    void setTargetForce(float force_val) override;
+    void setTargetWidth(float width_val) override;
+    void setTargetSpeed(float speed_val) override;
     void setCommand(uint16_t command);
    
     // Gripper control commands
     void gripInternal();
     void gripExternal();
-    void stop();
-    void moveGripper(float diameter_val);
+    void stop() override;
+    void moveGripper(float diameter_val) override;
 
     // Utility functions
-    float getMinWidth();
-    float getMaxWidth();
+    float getMinWidth() const override;
+    float getMaxWidth() const override;
+    float getMaxForce() const override;
 
     // 3FG15 specific functions
     float getCurrentDiameter();
@@ -74,11 +66,8 @@ public:
     void setFingertipOffset(float mm);
 
 private:
-    std::unique_ptr<IModbusConnection> connection;
-    int device_address_;
-
     // 3FG15 specifications
-    static constexpr float MAX_DIAMETER = 2.9f;
+    static constexpr float MAX_DIAMETER = 0.150f; // 150 mm maximum operating diameter
     static constexpr float MIN_DIAMETER = 0.0f;
     static constexpr float MAX_FORCE = 140.0f;
 
@@ -118,8 +107,5 @@ private:
     static constexpr uint16_t STATUS_FORCE_GRIP_DETECTED = 0x0004;
     static constexpr uint16_t STATUS_CALIBRATION_OK = 0x0008;
 
-    MB::ModbusResponse sendRequest(const MB::ModbusRequest &req);
-    float fromTenthMM(uint16_t tenth_mm);
-    uint16_t toTenthMM(float meters);
     void initParams();
 };

@@ -149,6 +149,11 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
         parameters=[{
             'onrobot_type': onrobot_type_val,
+            'connection_type': connection_type_val,
+            'ip_address': ip_address_val,
+            'port': int(port_val) if port_val.isdigit() else 502,
+            'device': device_val,
+            'use_fake_hardware': use_fake_hardware_val.lower() == 'true',
         }]
     )
 
