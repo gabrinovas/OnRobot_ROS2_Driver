@@ -6,7 +6,7 @@ class GripperStatusMonitor : public rclcpp::Node {
 public:
     GripperStatusMonitor() : Node("gripper_status_monitor") {
         // Get parameters
-        this->declare_parameter("onrobot_type", "rg2");
+        this->declare_parameter("onrobot_type", "2fg7");
         onrobot_type_ = this->get_parameter("onrobot_type").as_string();
 
         // Create status publisher
@@ -24,12 +24,12 @@ private:
     void monitor_status() {
         auto status_msg = std_msgs::msg::String();
         
-        if (onrobot_type_.find("2fg") != std::string::npos) {
-            // 2FG series status monitoring
-            status_msg.data = "2FG " + onrobot_type_ + " status: Monitoring active";
+        if (onrobot_type_ == "2fg7") {
+            status_msg.data = "OnRobot 2FG7 status: Monitoring active";
+        } else if (onrobot_type_ == "3fg15") {
+            status_msg.data = "OnRobot 3FG15 status: Monitoring active";
         } else {
-            // RG series status monitoring
-            status_msg.data = "RG " + onrobot_type_ + " status: Monitoring active";
+            status_msg.data = "OnRobot " + onrobot_type_ + " status: Monitoring active";
         }
         
         status_publisher_->publish(status_msg);

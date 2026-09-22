@@ -52,12 +52,10 @@ private:
     std::string type;
     int device_address_;
     
-    // 2FG specifications
+    // 2FG7 specifications
     static constexpr float MAX_WIDTH_2FG7 = 0.07f;
-    static constexpr float MAX_WIDTH_2FG14 = 0.14f;
     static constexpr float MIN_WIDTH = 0.0f;
     static constexpr float MAX_FORCE_2FG7 = 70.0f;
-    static constexpr float MAX_FORCE_2FG14 = 140.0f;
 
     // Default parameters
     float default_force_;

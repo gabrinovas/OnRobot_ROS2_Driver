@@ -15,8 +15,8 @@ TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int devic
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
-    if (type != "2fg7" && type != "2fg14")
-        throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
+    if (type != "2fg7")
+        throw std::invalid_argument("Please specify '2fg7'.");
 
     // Attempt to establish TCP connection, retrying every 500ms until successful or cancelled
     int retry_count = 0;
@@ -57,8 +57,8 @@ TwoFG::TwoFG(const std::string &type, const std::string &device, int device_addr
 {
     if (device.empty())
         throw std::invalid_argument("Please provide a serial device for connection.");
-    if (type != "2fg7" && type != "2fg14")
-        throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
+    if (type != "2fg7")
+        throw std::invalid_argument("Please specify '2fg7'.");
 
     // Attempt to establish Serial connection, retrying every 500ms until successful or cancelled
     int retry_count = 0;
@@ -96,13 +96,8 @@ TwoFG::~TwoFG()
 
 void TwoFG::initParams()
 {
-    if (type == "2fg7") {
-        max_width_ = MAX_WIDTH_2FG7;
-        max_force_ = MAX_FORCE_2FG7;
-    } else { // 2fg14
-        max_width_ = MAX_WIDTH_2FG14;
-        max_force_ = MAX_FORCE_2FG14;
-    }
+    max_width_ = MAX_WIDTH_2FG7;
+    max_force_ = MAX_FORCE_2FG7;
     
     default_force_ = max_force_ / 2;
     default_speed_ = 50.0f; // 50% speed

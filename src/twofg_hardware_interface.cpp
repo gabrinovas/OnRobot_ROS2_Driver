@@ -28,10 +28,10 @@ hardware_interface::CallbackReturn TwoFGHardwareInterface::on_init(const hardwar
     }
     
     onrobot_type_ = info.hardware_parameters.at("onrobot_type");
-    if (onrobot_type_ != "2fg7" && onrobot_type_ != "2fg14")
+    if (onrobot_type_ != "2fg7")
     {
         RCLCPP_ERROR(rclcpp::get_logger("TwoFGHardwareInterface"), 
-                    "Invalid onrobot_type for TwoFG: '%s'. Expected '2fg7' or '2fg14'", 
+                    "Invalid onrobot_type for TwoFG: '%s'. Expected '2fg7'", 
                     onrobot_type_.c_str());
         return hardware_interface::CallbackReturn::ERROR;
     }
@@ -104,17 +104,9 @@ hardware_interface::CallbackReturn TwoFGHardwareInterface::on_init(const hardwar
         return hardware_interface::CallbackReturn::ERROR;
     }
 
-    // === 8. Initialize joint variables based on 2FG type ===
-    if (onrobot_type_ == "2fg14")
-    {
-        finger_width_state_ = 0.070;  // Half of 140mm for 2FG14
-        finger_width_command_ = 0.070;
-    }
-    else
-    {
-        finger_width_state_ = 0.035;  // Half of 70mm for 2FG7
-        finger_width_command_ = 0.035;
-    }
+    // === 8. Initialize joint variables for 2FG7 ===
+    finger_width_state_ = 0.035;  // Half of 70mm for 2FG7
+    finger_width_command_ = 0.035;
 
     RCLCPP_INFO(rclcpp::get_logger("TwoFGHardwareInterface"),
                 "OnRobot %s Hardware Interface initialized (fake: %s, prefix: '%s')",
@@ -280,8 +272,8 @@ hardware_interface::return_type TwoFGHardwareInterface::write(const rclcpp::Time
         return hardware_interface::return_type::ERROR;
     }
 
-    // 2FG series range validation
-    double max_width = (onrobot_type_ == "2fg14") ? 0.140 : 0.070;
+    // 2FG7 range validation
+    double max_width = 0.070;
     if (finger_width_command_ < 0.0 || finger_width_command_ > max_width)
     {
         RCLCPP_WARN(rclcpp::get_logger("TwoFGHardwareInterface"),

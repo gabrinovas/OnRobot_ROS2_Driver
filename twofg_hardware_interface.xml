@@ -4,7 +4,7 @@
          type="onrobot_driver::TwoFGHardwareInterface"
          base_class_type="hardware_interface::ActuatorInterface">
     <description>
-        ROS 2 Control hardware interface for the OnRobot 2FG gripper series (2FG7, 2FG14).
+        ROS 2 Control hardware interface for the OnRobot 2FG7 gripper.
     </description>
   </class>
 </library>

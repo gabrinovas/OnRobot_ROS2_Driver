@@ -25,7 +25,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver/common
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver/threefg
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver/twofg
-  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/rg
 )
 
 # List of dependencies
@@ -47,29 +46,6 @@ set(MODBUS_SERIAL_COMMUNICATION ON CACHE BOOL "Enable Modbus Serial Communicatio
 
 # Add the Modbus library as a subdirectory
 add_subdirectory(include/onrobot_driver/Modbus)
-
-# =============================================================================
-# Build the RG hardware interface as a shared library
-# =============================================================================
-add_library(onrobot_rg_driver_plugin
-  SHARED
-  src/RG.cpp
-  src/rg_hardware_interface.cpp
-)
-target_link_libraries(onrobot_rg_driver_plugin
-  Modbus
-  pluginlib::pluginlib
-)
-target_include_directories(onrobot_rg_driver_plugin
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  PRIVATE
-    include
-)
-ament_target_dependencies(onrobot_rg_driver_plugin
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
 
 # =============================================================================
 # Build the TwoFG hardware interface as a shared library
@@ -175,27 +151,9 @@ target_link_libraries(ThreeFG
     Modbus
 )
 
-# Create RG Python module (optional - add if you want Python support for RG)
-pybind11_add_module(RG
-  src/RG.cpp
-  src/RG_binding.cpp
-)
-target_include_directories(RG
-  PRIVATE
-    include
-    ${CMAKE_SOURCE_DIR}/include
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_link_libraries(RG
-  PRIVATE
-    Modbus
-)
-
 # Install Python modules
 install(
-  TARGETS TwoFG ThreeFG RG
+  TARGETS TwoFG ThreeFG
   LIBRARY DESTINATION lib/${PROJECT_NAME}
   ARCHIVE DESTINATION lib/${PROJECT_NAME}
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -213,13 +171,11 @@ install(
 # =============================================================================
 install(
   TARGETS
-    onrobot_rg_driver_plugin
     onrobot_twofg_driver_plugin
     onrobot_threefg_driver_plugin
     gripper_status_monitor
     TwoFG
     ThreeFG
-    RG
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -235,7 +191,6 @@ install(
 
 install(
   FILES
-    rg_hardware_interface.xml
     twofg_hardware_interface.xml
     threefg_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
@@ -246,7 +201,6 @@ install(
 # =============================================================================
 ament_export_include_directories(include)
 ament_export_libraries(
-  onrobot_rg_driver_plugin
   onrobot_twofg_driver_plugin
   onrobot_threefg_driver_plugin
 )
@@ -263,7 +217,6 @@ ament_export_dependencies(
 # =============================================================================
 pluginlib_export_plugin_description_file(hardware_interface twofg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface threefg_hardware_interface.xml)
-pluginlib_export_plugin_description_file(hardware_interface rg_hardware_interface.xml)
 
 # =============================================================================
 # Testing

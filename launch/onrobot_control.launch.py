@@ -63,15 +63,14 @@ def launch_setup(context, *args, **kwargs):
     robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
 
     # Determine which controller config and hardware interface to use based on resolved gripper type
-    if onrobot_type_val.startswith('2fg'):
+    if onrobot_type_val == '2fg7':
         controller_config_filename = 'twofg_controllers.yaml'
         hw_interface_plugin = 'onrobot_driver::TwoFGHardwareInterface'
-    elif onrobot_type_val.startswith('3fg'):
+    elif onrobot_type_val == '3fg15':
         controller_config_filename = 'threefg_controllers.yaml'
         hw_interface_plugin = 'onrobot_driver::ThreeFGHardwareInterface'
-    else:  # rg2, rg6
-        controller_config_filename = 'rg_controllers.yaml'
-        hw_interface_plugin = 'onrobot_driver::RGHardwareInterface'
+    else:
+        raise RuntimeError(f"Unsupported onrobot_type: '{onrobot_type_val}'. Supported types are: '2fg7', '3fg15'")
 
     controller_config_file = PathJoinSubstitution([
         FindPackageShare('onrobot_driver'),
@@ -163,9 +162,9 @@ def generate_launch_description():
     declared_arguments = [
         DeclareLaunchArgument(
             'onrobot_type',
-            default_value='rg2',
+            default_value='2fg7',
             description='Type of OnRobot gripper.',
-            choices=['rg2', 'rg6', '2fg7', '2fg14', '3fg15', '3fg25'],
+            choices=['2fg7', '3fg15'],
         ),
         DeclareLaunchArgument(
             'connection_type',
