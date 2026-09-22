@@ -72,8 +72,11 @@ def launch_setup(context, *args, **kwargs):
     elif onrobot_type_val == '3fg15':
         controller_config_filename = 'threefg_controllers.yaml'
         hw_interface_plugin = 'onrobot_driver::ThreeFGHardwareInterface'
+    elif onrobot_type_val == 'vgc10':
+        controller_config_filename = 'vgc10_controllers.yaml'
+        hw_interface_plugin = 'onrobot_driver::VGC10HardwareInterface'
     else:
-        raise RuntimeError(f"Unsupported onrobot_type: '{onrobot_type_val}'. Supported types are: '2fg7', '3fg15'")
+        raise RuntimeError(f"Unsupported onrobot_type: '{onrobot_type_val}'. Supported types are: '2fg7', '3fg15', 'vgc10'")
 
     controller_config_file = PathJoinSubstitution([
         FindPackageShare('onrobot_driver'),
@@ -114,15 +117,41 @@ def launch_setup(context, *args, **kwargs):
         output='screen'
     )
 
-    # Spawn the gripper controller (GripperActionController for MoveIt 2 or JointGroupPositionController)
-    controller_to_spawn = 'gripper_action_controller' if use_gripper_action_controller_val else 'finger_width_controller'
-    gripper_controller_spawner = Node(
-        namespace=ns_val,
-        package='controller_manager',
-        executable='spawner',
-        arguments=[controller_to_spawn],
-        output='screen'
-    )
+    # Spawn the gripper controllers
+    gripper_spawners = []
+    if onrobot_type_val == 'vgc10':
+        if use_gripper_action_controller_val:
+            gripper_spawners.append(Node(
+                namespace=ns_val,
+                package='controller_manager',
+                executable='spawner',
+                arguments=['gripper_channel_a_controller'],
+                output='screen'
+            ))
+            gripper_spawners.append(Node(
+                namespace=ns_val,
+                package='controller_manager',
+                executable='spawner',
+                arguments=['gripper_channel_b_controller'],
+                output='screen'
+            ))
+        else:
+            gripper_spawners.append(Node(
+                namespace=ns_val,
+                package='controller_manager',
+                executable='spawner',
+                arguments=['vacuum_group_controller'],
+                output='screen'
+            ))
+    else:
+        controller_to_spawn = 'gripper_action_controller' if use_gripper_action_controller_val else 'finger_width_controller'
+        gripper_spawners.append(Node(
+            namespace=ns_val,
+            package='controller_manager',
+            executable='spawner',
+            arguments=[controller_to_spawn],
+            output='screen'
+        ))
 
     # Launch RViz for visualization using the config from onrobot_description
     rviz_config_file = PathJoinSubstitution([
@@ -161,7 +190,7 @@ def launch_setup(context, *args, **kwargs):
         ros2_control_node,
         robot_state_publisher_node,
         joint_state_spawner,
-        gripper_controller_spawner,
+        *gripper_spawners,
         gripper_status_node,
         rviz_node,
     ]
@@ -173,7 +202,7 @@ def generate_launch_description():
             'onrobot_type',
             default_value='2fg7',
             description='Type of OnRobot gripper.',
-            choices=['2fg7', '3fg15'],
+            choices=['2fg7', '3fg15', 'vgc10'],
         ),
         DeclareLaunchArgument(
             'connection_type',

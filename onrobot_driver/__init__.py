@@ -15,4 +15,12 @@ except ImportError:
     except ImportError:
         ThreeFG = None
 
-__all__ = ["TwoFG", "ThreeFG"]
+try:
+    from .VGC10 import VGC10
+except ImportError:
+    try:
+        from VGC10 import VGC10
+    except ImportError:
+        VGC10 = None
+
+__all__ = ["TwoFG", "ThreeFG", "VGC10"]

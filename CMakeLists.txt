@@ -26,6 +26,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver/common
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver/threefg
   ${CMAKE_SOURCE_DIR}/include/onrobot_driver/twofg
+  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/vgc10
 )
 
 # List of dependencies
@@ -91,6 +92,30 @@ target_include_directories(onrobot_threefg_driver_plugin
     include
 )
 ament_target_dependencies(onrobot_threefg_driver_plugin
+  ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
+
+# =============================================================================
+# Build the VGC10 hardware interface as a shared library
+# =============================================================================
+add_library(onrobot_vgc10_driver_plugin
+  SHARED
+  src/OnRobotGripperBase.cpp
+  src/VGC10.cpp
+  src/vgc10_hardware_interface.cpp
+)
+target_link_libraries(onrobot_vgc10_driver_plugin
+  Modbus
+  pluginlib::pluginlib
+)
+target_include_directories(onrobot_vgc10_driver_plugin
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    include
+)
+ament_target_dependencies(onrobot_vgc10_driver_plugin
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
@@ -161,16 +186,35 @@ target_link_libraries(ThreeFG
     Modbus
 )
 
+# Create VGC10 Python module
+pybind11_add_module(VGC10
+  src/OnRobotGripperBase.cpp
+  src/VGC10.cpp
+  src/VGC10_binding.cpp
+)
+target_include_directories(VGC10
+  PRIVATE
+    include
+    ${CMAKE_SOURCE_DIR}/include
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(VGC10
+  PRIVATE
+    Modbus
+)
+
 # Install Python package (ament_cmake_python)
 ament_python_install_package(${PROJECT_NAME})
 
 # Install pybind11 modules to Python installation directories
 install(
-  TARGETS TwoFG ThreeFG
+  TARGETS TwoFG ThreeFG VGC10
   DESTINATION "${PYTHON_INSTALL_DIR}"
 )
 install(
-  TARGETS TwoFG ThreeFG
+  TARGETS TwoFG ThreeFG VGC10
   DESTINATION "${PYTHON_INSTALL_DIR}/${PROJECT_NAME}"
 )
 
@@ -181,6 +225,7 @@ install(
   TARGETS
     onrobot_twofg_driver_plugin
     onrobot_threefg_driver_plugin
+    onrobot_vgc10_driver_plugin
     gripper_status_monitor
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -199,6 +244,7 @@ install(
   FILES
     twofg_hardware_interface.xml
     threefg_hardware_interface.xml
+    vgc10_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -209,6 +255,7 @@ ament_export_include_directories(include)
 ament_export_libraries(
   onrobot_twofg_driver_plugin
   onrobot_threefg_driver_plugin
+  onrobot_vgc10_driver_plugin
 )
 ament_export_dependencies(
   hardware_interface
@@ -223,6 +270,7 @@ ament_export_dependencies(
 # =============================================================================
 pluginlib_export_plugin_description_file(hardware_interface twofg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface threefg_hardware_interface.xml)
+pluginlib_export_plugin_description_file(hardware_interface vgc10_hardware_interface.xml)
 
 # =============================================================================
 # Testing
