@@ -9,9 +9,9 @@ Provides C++ APIs, Python bindings and example test nodes to integrate grippers 
 - Modbus TCP / Serial support for OnRobot grippers based on OnRobot Connectivity Guide v1.22.0.
 - Hardware interface plugins for ROS 2 Control (Humble): TwoFG (2FG7) and ThreeFG (3FG15).
 - Python bindings (pybind11) for direct scripting and tests.
-- Example Python nodes to run motion sequences:
-  - [`UR5eFullZTrajectory`](src/test_traj.py)
-  - [`UR5eGripperTrajectory`](src/test_traj_with_gripper.py)
+- Example Python nodes to run motion sequences (in [examples/](examples)):
+  - [`UR5eFullZTrajectory`](examples/test_traj.py)
+  - [`UR5eGripperTrajectory`](examples/test_traj_with_gripper.py)
 
 ## Supported grippers
 - 2FG7 — see [`TwoFG`](include/onrobot_driver/twofg/TwoFG.hpp)
@@ -39,33 +39,47 @@ Provides C++ APIs, Python bindings and example test nodes to integrate grippers 
    source install/setup.bash
    ```
 
-## Notes about Python modules
-- The CMake configuration builds Python modules via pybind11:
-  - TwoFG, ThreeFG (see [CMakeLists.txt](CMakeLists.txt)).
-- The helper script [install_fg.sh](install_fg.sh) demonstrates how to copy the generated ThreeFG module into a target Python location for legacy setups.
+## Python Modules (pybind11)
+The driver automatically installs Python bindings via `ament_cmake_python`. Once `source install/setup.bash` is run, both import styles work natively without any manual file copying:
+
+```python
+# Direct module import:
+import TwoFG
+import ThreeFG
+
+# Or namespaced package import:
+from onrobot_driver import TwoFG, ThreeFG
+
+gripper = TwoFG.TwoFG("2fg7", "192.168.1.1", 502, 65)
+print("Current width:", gripper.getWidth())
+```
 
 ## Running the driver (example)
-- Launch the ros2_control node with the appropriate hardware plugin and controller configuration using the provided launch file:
-  ```bash
-  ros2 launch onrobot_driver onrobot_control.launch.py onrobot_type:=2fg7 connection_type:=serial
-  ```
-  - The launch implementation exposes [`generate_launch_description`](launch/onrobot_control.launch.py).
+- Launch the ros2_control node with the standard MoveIt 2 action controller:
+   ```bash
+   ros2 launch onrobot_driver onrobot_control.launch.py onrobot_type:=2fg7 connection_type:=serial
+   ```
 - Key launch arguments:
   - `onrobot_type`: `2fg7` | `3fg15`
   - `connection_type`: `serial` | `tcp`
+  - `use_gripper_action_controller`: `true` (default, standard GripperCommand action server) | `false` (topic-based position controller)
   - `device` / `ip_address` / `port` / `device_address`
   - `use_fake_hardware`: `true` | `false`
   - `prefix`: joint name prefix for multi-robot setups
 
-## Topics and control
-- Gripper joint state (meters): `/onrobot/joint_states`
-- Command the gripper with the finger_width controller:
+## Control Interfaces
+- Gripper joint state (position, velocity, effort in N): `/onrobot/joint_states`
+- **MoveIt 2 Action Server** (default):
+  ```bash
+  ros2 action send_goal /onrobot/gripper_action_controller/gripper_cmd control_msgs/action/GripperCommand "{command: {position: 0.04, max_effort: 40.0}}"
+  ```
+- **Topic-based command** (when `use_gripper_action_controller:=false`):
   ```bash
   ros2 topic pub --once /onrobot/finger_width_controller/commands std_msgs/msg/Float64MultiArray "{data: [0.035]}"
   ```
-- Example test nodes:
-  - [`src/test_traj.py`](src/test_traj.py) — motion sequence without gripper control.
-  - [`src/test_traj_with_gripper.py`](src/test_traj_with_gripper.py) — motion + gripper control sequence.
+- Example motion sequences:
+  - [`examples/test_traj.py`](examples/test_traj.py) — robot trajectory test.
+  - [`examples/test_traj_with_gripper.py`](examples/test_traj_with_gripper.py) — coordinated robot and gripper sequence.
 
 ## Plugin and configuration files
 - Hardware plugin XMLs:

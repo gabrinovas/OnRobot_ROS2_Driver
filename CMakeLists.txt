@@ -6,17 +6,14 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(controller_manager REQUIRED)
-find_package(controller_manager_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(std_srvs REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
 
 # Include directories
 include_directories(
@@ -30,15 +27,11 @@ include_directories(
 # List of dependencies
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   controller_manager
-  controller_manager_msgs
-  geometry_msgs
   hardware_interface
   pluginlib
   rclcpp
   rclcpp_lifecycle
   std_msgs
-  std_srvs
-  tf2_geometry_msgs
 )
 
 # Enable serial communication for the Modbus library
@@ -151,19 +144,17 @@ target_link_libraries(ThreeFG
     Modbus
 )
 
-# Install Python modules
+# Install Python package (ament_cmake_python)
+ament_python_install_package(${PROJECT_NAME})
+
+# Install pybind11 modules to Python installation directories
 install(
   TARGETS TwoFG ThreeFG
-  LIBRARY DESTINATION lib/${PROJECT_NAME}
-  ARCHIVE DESTINATION lib/${PROJECT_NAME}
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
+  DESTINATION "${PYTHON_INSTALL_DIR}"
 )
-
-# Install Python nodes
 install(
-  PROGRAMS
-    src/test_traj_with_gripper.py
-  DESTINATION lib/${PROJECT_NAME}
+  TARGETS TwoFG ThreeFG
+  DESTINATION "${PYTHON_INSTALL_DIR}/${PROJECT_NAME}"
 )
 
 # =============================================================================
@@ -174,8 +165,6 @@ install(
     onrobot_twofg_driver_plugin
     onrobot_threefg_driver_plugin
     gripper_status_monitor
-    TwoFG
-    ThreeFG
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -185,7 +174,7 @@ install(
 )
 
 install(
-  DIRECTORY launch config
+  DIRECTORY launch config examples
   DESTINATION share/${PROJECT_NAME}
 )
 
