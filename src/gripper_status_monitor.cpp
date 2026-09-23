@@ -20,6 +20,10 @@ public:
           current_width_(0.0),
           current_velocity_(0.0),
           current_effort_(0.0),
+          vacuum_a_(0.0),
+          vacuum_b_(0.0),
+          prev_vacuum_a_(0.0),
+          prev_vacuum_b_(0.0),
           has_joint_state_(false)
     {
         // Parameters
@@ -41,9 +45,9 @@ public:
 
         // Diagnostics setup
         updater_.setHardwareID("OnRobot " + onrobot_type_);
-        updater_.add("Gripper Telemetry", this, &GripperStatusMonitor::produceDiagnostics);
+        updater_.add("Gripper Telemetry & Health", this, &GripperStatusMonitor::produceDiagnostics);
 
-        // Legacy string status publisher
+        // Status string publisher
         status_publisher_ = this->create_publisher<std_msgs::msg::String>("gripper_status", 10);
 
         // Subscribe to joint_states to track telemetry
@@ -56,38 +60,51 @@ public:
             "reset_power",
             std::bind(&GripperStatusMonitor::handleResetPower, this, std::placeholders::_1, std::placeholders::_2));
 
-        // Timer for diagnostics and legacy status publishing
+        // Timer for diagnostics and status publishing (1 Hz)
         timer_ = this->create_wall_timer(
             std::chrono::seconds(1),
             std::bind(&GripperStatusMonitor::onTimer, this));
 
-        RCLCPP_INFO(this->get_logger(), "Gripper Status Monitor started for %s with diagnostic_updater and reset_power service",
-                    onrobot_type_.c_str());
+        RCLCPP_INFO(this->get_logger(),
+                    "Gripper Status Monitor started for '%s' (conn=%s, fake=%s) with diagnostic_updater",
+                    onrobot_type_.c_str(), connection_type_.c_str(), use_fake_hardware_ ? "true" : "false");
     }
 
 private:
     void jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
     {
+        bool found_data = false;
+
         for (size_t i = 0; i < msg->name.size(); ++i)
         {
-            if (msg->name[i].find("finger_width") != std::string::npos)
+            const std::string &name = msg->name[i];
+
+            // 1. Parallel and 3-Finger grippers (finger_width)
+            if (name.find("finger_width") != std::string::npos)
             {
-                if (i < msg->position.size())
-                {
-                    current_width_ = msg->position[i];
-                }
-                if (i < msg->velocity.size())
-                {
-                    current_velocity_ = msg->velocity[i];
-                }
-                if (i < msg->effort.size())
-                {
-                    current_effort_ = msg->effort[i];
-                }
-                last_msg_time_ = this->now();
-                has_joint_state_ = true;
-                break;
+                if (i < msg->position.size()) current_width_ = msg->position[i];
+                if (i < msg->velocity.size()) current_velocity_ = msg->velocity[i];
+                if (i < msg->effort.size()) current_effort_ = msg->effort[i];
+                found_data = true;
             }
+
+            // 2. VGC10 vacuum channels
+            if (name.find("vacuum_channel_a") != std::string::npos)
+            {
+                if (i < msg->position.size()) vacuum_a_ = msg->position[i];
+                found_data = true;
+            }
+            if (name.find("vacuum_channel_b") != std::string::npos)
+            {
+                if (i < msg->position.size()) vacuum_b_ = msg->position[i];
+                found_data = true;
+            }
+        }
+
+        if (found_data)
+        {
+            last_msg_time_ = this->now();
+            has_joint_state_ = true;
         }
     }
 
@@ -95,30 +112,107 @@ private:
     {
         auto now = this->now();
         double time_since_last_msg = (has_joint_state_) ? (now - last_msg_time_).seconds() : 999.0;
-
-        if (!has_joint_state_)
-        {
-            stat.summary(diagnostic_msgs::msg::DiagnosticStatus::WARN, "Waiting for initial joint states");
-        }
-        else if (time_since_last_msg > 3.0)
-        {
-            stat.summary(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Communication timeout (> 3s without telemetry)");
-        }
-        else if (time_since_last_msg > 1.0)
-        {
-            stat.summary(diagnostic_msgs::msg::DiagnosticStatus::WARN, "Delayed telemetry update");
-        }
-        else
-        {
-            stat.summary(diagnostic_msgs::msg::DiagnosticStatus::OK, "Gripper operational");
-        }
+        std::string endpoint = (connection_type_ == "tcp") ? (ip_address_ + ":" + std::to_string(port_)) : device_;
 
         stat.add("Gripper Model", onrobot_type_);
         stat.add("Connection Type", connection_type_);
-        stat.addf("Width (mm)", "%.2f", current_width_ * 1000.0);
-        stat.addf("Velocity (mm/s)", "%.2f", current_velocity_ * 1000.0);
-        stat.addf("Effort (N)", "%.1f", current_effort_);
-        stat.addf("Seconds since last update", "%.2f", time_since_last_msg);
+        stat.add("Endpoint", endpoint);
+        stat.add("Hardware Mode", use_fake_hardware_ ? "Simulation (Fake Hardware)" : "Physical Robot");
+        stat.addf("Telemetry Age (s)", "%.3f", time_since_last_msg);
+
+        // General communication check
+        if (!has_joint_state_)
+        {
+            stat.summary(diagnostic_msgs::msg::DiagnosticStatus::WARN, "Waiting for initial gripper telemetry");
+            return;
+        }
+        else if (time_since_last_msg > 3.0)
+        {
+            stat.summary(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Communication timeout (> 3s without joint_states)");
+            return;
+        }
+        else if (time_since_last_msg > 1.0)
+        {
+            stat.summary(diagnostic_msgs::msg::DiagnosticStatus::WARN, "Delayed telemetry update (> 1s)");
+            return;
+        }
+
+        // Specific diagnostics for VGC10
+        if (onrobot_type_ == "vgc10")
+        {
+            stat.addf("Channel A Vacuum (%)", "%.1f %%", vacuum_a_ * 100.0);
+            stat.addf("Channel B Vacuum (%)", "%.1f %%", vacuum_b_ * 100.0);
+
+            uint8_t level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+            std::string status_msg;
+
+            // Check for sudden drop / part dropped
+            if (prev_vacuum_a_ > 0.50 && vacuum_a_ < 0.20)
+            {
+                level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+                status_msg = "ALERT: Vacuum loss / object dropped on Channel A!";
+            }
+            else if (prev_vacuum_b_ > 0.50 && vacuum_b_ < 0.20)
+            {
+                level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+                status_msg = "ALERT: Vacuum loss / object dropped on Channel B!";
+            }
+            else if (vacuum_a_ > 0.05 && vacuum_b_ > 0.05)
+            {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Dual-Channel Active: A=%.0f%%, B=%.0f%%", vacuum_a_ * 100.0, vacuum_b_ * 100.0);
+                status_msg = buf;
+            }
+            else if (vacuum_a_ > 0.05)
+            {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Channel A Active: %.0f%%", vacuum_a_ * 100.0);
+                status_msg = buf;
+            }
+            else if (vacuum_b_ > 0.05)
+            {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Channel B Active: %.0f%%", vacuum_b_ * 100.0);
+                status_msg = buf;
+            }
+            else
+            {
+                status_msg = "VGC10 Release / Standby";
+            }
+
+            prev_vacuum_a_ = vacuum_a_;
+            prev_vacuum_b_ = vacuum_b_;
+            stat.summary(level, status_msg);
+        }
+        else // 2FG7 and 3FG15
+        {
+            stat.addf("Width (mm)", "%.2f", current_width_ * 1000.0);
+            stat.addf("Velocity (mm/s)", "%.2f", current_velocity_ * 1000.0);
+            stat.addf("Effort (N)", "%.1f", current_effort_);
+
+            uint8_t level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+            std::string status_msg;
+
+            bool is_gripping = (std::abs(current_effort_) > 5.0 && std::abs(current_velocity_) < 0.005);
+            if (is_gripping)
+            {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Part Gripped: width=%.1fmm, effort=%.1fN", current_width_ * 1000.0, current_effort_);
+                status_msg = buf;
+            }
+            else if (std::abs(current_velocity_) > 0.005)
+            {
+                status_msg = "Gripper in motion";
+            }
+            else
+            {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Gripper Standby at %.1fmm", current_width_ * 1000.0);
+                status_msg = buf;
+            }
+
+            stat.summary(level, status_msg);
+        }
     }
 
     void handleResetPower(
@@ -171,9 +265,17 @@ private:
         auto status_msg = std_msgs::msg::String();
         if (has_joint_state_)
         {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "OnRobot %s: width=%.1fmm, effort=%.1fN",
-                     onrobot_type_.c_str(), current_width_ * 1000.0, current_effort_);
+            char buf[256];
+            if (onrobot_type_ == "vgc10")
+            {
+                snprintf(buf, sizeof(buf), "OnRobot VGC10: Channel A=%.1f%%, Channel B=%.1f%%",
+                         vacuum_a_ * 100.0, vacuum_b_ * 100.0);
+            }
+            else
+            {
+                snprintf(buf, sizeof(buf), "OnRobot %s: width=%.1fmm, effort=%.1fN",
+                         onrobot_type_.c_str(), current_width_ * 1000.0, current_effort_);
+            }
             status_msg.data = buf;
         }
         else
@@ -194,6 +296,12 @@ private:
     double current_width_;
     double current_velocity_;
     double current_effort_;
+
+    double vacuum_a_;
+    double vacuum_b_;
+    double prev_vacuum_a_;
+    double prev_vacuum_b_;
+
     bool has_joint_state_;
     rclcpp::Time last_msg_time_;
 

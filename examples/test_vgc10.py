@@ -35,10 +35,10 @@ def test_direct_python(ip: str, port: int, device_address: int):
         return
 
     try:
-        print("\n--- 1. Lectura inicial de telemetría ---")
-        vac_a = gripper.get_vacuum_channel_a()
-        vac_b = gripper.get_vacuum_channel_b()
+        print("\n--- 1. Lectura inicial de telemetría (Single Modbus Transaction) ---")
+        ok, vac_a, vac_b = gripper.read_both_vacuums()
         print(f"Vacío Canal A: {vac_a * 100:.1f} % | Vacío Canal B: {vac_b * 100:.1f} %")
+        print(f"Estado de conexión: {'Conectado' if gripper.is_connected() else 'Desconectado'} | Latencia: {gripper.get_last_roundtrip_ms():.2f} ms | Peticiones: {gripper.get_total_requests()}")
 
         print("\n--- 2. Succión en Canal A (60% vacío) manteniendo Canal B liberado ---")
         gripper.grip_channel_a(60)

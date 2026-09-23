@@ -360,10 +360,10 @@ void VGC10HardwareInterface::asyncWorkerLoop()
                 }
             }
 
-            // 2. Read telemetry from physical VGC10
-            float vac_a = gripper_->getVacuumChannelA();
-            float vac_b = gripper_->getVacuumChannelB();
-
+            // 2. Read telemetry from physical VGC10 via single Modbus transaction
+            float vac_a = 0.0f;
+            float vac_b = 0.0f;
+            if (gripper_->readBothVacuums(vac_a, vac_b))
             {
                 std::lock_guard<std::mutex> lock(async_state_mutex_);
                 cached_vacuum_a_ = vac_a;
@@ -379,7 +379,22 @@ void VGC10HardwareInterface::asyncWorkerLoop()
             comm_healthy_ = false;
             RCLCPP_WARN_THROTTLE(rclcpp::get_logger("VGC10HardwareInterface"),
                                  *rclcpp::get_current_node()->get_clock(), 2000,
-                                 "Modbus communication error with VGC10: %s", e.what());
+                                 "Modbus communication error with VGC10: %s. Attempting background recovery...", e.what());
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            try
+            {
+                if (gripper_->reconnect())
+                {
+                    RCLCPP_INFO(rclcpp::get_logger("VGC10HardwareInterface"),
+                                "Modbus connection to VGC10 restored successfully.");
+                    comm_healthy_ = true;
+                    last_sent_a = -1.0;
+                    last_sent_b = -1.0;
+                }
+            }
+            catch (...)
+            {
+            }
         }
 
         // Maintain ~50 Hz update rate for async loop

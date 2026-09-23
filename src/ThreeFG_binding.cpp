@@ -44,5 +44,12 @@ PYBIND11_MODULE(ThreeFG, m) {
         .def("setFingerPosition", &ThreeFG::setFingerPosition)
         .def("setFingertipOffset", &ThreeFG::setFingertipOffset)
         .def("resetToolPower", &ThreeFG::resetToolPower,
-             py::arg("compute_box_address") = 63);
+             py::arg("compute_box_address") = 63)
+        // Diagnostics and connection health
+        .def("is_connected", &ThreeFG::isConnected)
+        .def("reconnect", &ThreeFG::reconnect, py::arg("timeout_ms") = 1000)
+        .def("get_reconnect_count", &ThreeFG::getReconnectCount)
+        .def("get_total_requests", &ThreeFG::getTotalRequests)
+        .def("get_failed_requests", &ThreeFG::getFailedRequests)
+        .def("get_last_roundtrip_ms", &ThreeFG::getLastRoundtripMs);
 }

@@ -379,7 +379,19 @@ void OnRobotHardwareInterfaceBase::asyncWorkerLoop()
         catch (const std::exception &ex)
         {
             comm_healthy_ = false;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            try
+            {
+                if (gripper->reconnect())
+                {
+                    comm_healthy_ = true;
+                    last_sent_position = -1.0;
+                    last_sent_effort = -1.0;
+                }
+            }
+            catch (...)
+            {
+            }
         }
 
         // Target async loop rate ~35 Hz (approx 28 ms)

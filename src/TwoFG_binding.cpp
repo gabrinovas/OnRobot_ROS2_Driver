@@ -25,5 +25,12 @@ PYBIND11_MODULE(TwoFG, m) {
         .def("getMinWidth", &TwoFG::getMinWidth)
         .def("getMaxWidth", &TwoFG::getMaxWidth)
         .def("resetToolPower", &TwoFG::resetToolPower,
-             py::arg("compute_box_address") = 63);
+             py::arg("compute_box_address") = 63)
+        // Diagnostics and connection health
+        .def("is_connected", &TwoFG::isConnected)
+        .def("reconnect", &TwoFG::reconnect, py::arg("timeout_ms") = 1000)
+        .def("get_reconnect_count", &TwoFG::getReconnectCount)
+        .def("get_total_requests", &TwoFG::getTotalRequests)
+        .def("get_failed_requests", &TwoFG::getFailedRequests)
+        .def("get_last_roundtrip_ms", &TwoFG::getLastRoundtripMs);
 }

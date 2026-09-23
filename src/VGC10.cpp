@@ -216,13 +216,51 @@ float VGC10::getVacuumChannelB()
     return std::max(0.0f, std::min(normalized, 1.0f));
 }
 
+bool VGC10::readBothVacuums(float &vac_a, float &vac_b)
+{
+    // Read 2 consecutive registers starting from REG_CHANNEL_A_VACUUM (0x0102)
+    // 0x0102: Channel A vacuum (1/1000)
+    // 0x0103: Channel B vacuum (1/1000)
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_CHANNEL_A_VACUUM, 2);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        const auto &regs = resp.registerValues();
+        if (regs.size() >= 2 && regs[0].isReg() && regs[1].isReg())
+        {
+            uint16_t raw_a = regs[0].reg();
+            uint16_t raw_b = regs[1].reg();
+            vac_a = std::max(0.0f, std::min(static_cast<float>(raw_a) / 1000.0f, 1.0f));
+            vac_b = std::max(0.0f, std::min(static_cast<float>(raw_b) / 1000.0f, 1.0f));
+            return true;
+        }
+    }
+    catch (const std::exception &)
+    {
+        throw;
+    }
+    return false;
+}
+
 // ================= Base Interface Implementations =================
 
 float VGC10::getWidth()
 {
     // Combined / Average vacuum level normalized to [0.0, 1.0]
-    float vac_a = getVacuumChannelA();
-    float vac_b = getVacuumChannelB();
+    float vac_a = 0.0f;
+    float vac_b = 0.0f;
+    try
+    {
+        if (readBothVacuums(vac_a, vac_b))
+        {
+            return (vac_a + vac_b) / 2.0f;
+        }
+    }
+    catch (...)
+    {
+    }
+    return (getVacuumChannelA() + getVacuumChannelB()) / 2.0f;
+}
     return (vac_a + vac_b) / 2.0f;
 }
 

@@ -74,6 +74,7 @@ public:
     float getVacuumChannelB();
     uint16_t getRawVacuumChannelA(); // in 1/1000 relative vacuum
     uint16_t getRawVacuumChannelB();
+    bool readBothVacuums(float &vac_a, float &vac_b); // Single Modbus transaction for both channels
 
     uint8_t getModeChannelA() const { return current_mode_a_; }
     uint8_t getModeChannelB() const { return current_mode_b_; }
