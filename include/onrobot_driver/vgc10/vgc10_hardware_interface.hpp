@@ -13,11 +13,21 @@
 #include "hardware_interface/hardware_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "realtime_tools/realtime_buffer.hpp"
 
 #include "onrobot_driver/vgc10/VGC10.hpp"
 
 namespace onrobot_driver
 {
+
+struct VGC10StateData
+{
+    double vacuum_a{0.0};
+    double effort_a{0.0};
+    double vacuum_b{0.0};
+    double effort_b{0.0};
+    bool healthy{true};
+};
 
 class VGC10HardwareInterface : public hardware_interface::ActuatorInterface
 {
@@ -63,6 +73,8 @@ private:
     double vacuum_a_state_{0.0};
     double vacuum_a_velocity_{0.0};
     double vacuum_a_effort_{0.0};
+    double vacuum_a_level_state_{0.0};
+    double pressure_a_kpa_state_{0.0};
     double vacuum_a_command_{0.0};
     double vacuum_a_effort_command_{60.0};
 
@@ -70,6 +82,8 @@ private:
     double vacuum_b_state_{0.0};
     double vacuum_b_velocity_{0.0};
     double vacuum_b_effort_{0.0};
+    double vacuum_b_level_state_{0.0};
+    double pressure_b_kpa_state_{0.0};
     double vacuum_b_command_{0.0};
     double vacuum_b_effort_command_{60.0};
 
@@ -82,19 +96,14 @@ private:
     std::atomic<bool> worker_running_{false};
     std::atomic<bool> comm_healthy_{true};
 
-    // Shared state cache between async worker and RT loop
-    std::mutex async_state_mutex_;
-    double cached_vacuum_a_{0.0};
-    double cached_vacuum_b_{0.0};
-    double cached_effort_a_{0.0};
-    double cached_effort_b_{0.0};
+    // Lock-free real-time state buffer: worker writes, RT loop reads (O(1) wait-free / lock-free)
+    realtime_tools::RealtimeBuffer<VGC10StateData> state_buffer_;
 
-    // Shared command cache from RT loop to async worker
-    std::mutex async_cmd_mutex_;
-    double desired_vacuum_a_{0.0};
-    double desired_vacuum_b_{0.0};
-    double desired_effort_a_{60.0};
-    double desired_effort_b_{60.0};
+    // Wait-free atomic command buffer from RT loop to worker thread
+    std::atomic<double> desired_vacuum_a_{0.0};
+    std::atomic<double> desired_vacuum_b_{0.0};
+    std::atomic<double> desired_effort_a_{60.0};
+    std::atomic<double> desired_effort_b_{60.0};
     std::atomic<bool> new_cmd_available_{false};
 };
 

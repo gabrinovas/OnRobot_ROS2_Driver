@@ -128,19 +128,18 @@ hardware_interface::CallbackReturn OnRobotHardwareInterfaceBase::on_configure(co
         finger_width_effort_ = 0.0;
 
         {
-            std::lock_guard<std::mutex> lock(async_state_mutex_);
-            cached_position_ = initial_width;
-            cached_velocity_ = 0.0;
-            cached_effort_ = 0.0;
-            cached_status_ = gripper->getStatusRaw();
+            GripperStateData initial_state;
+            initial_state.position = initial_width;
+            initial_state.velocity = 0.0;
+            initial_state.effort = 0.0;
+            initial_state.status = gripper->getStatusRaw();
+            initial_state.healthy = true;
+            state_buffer_.initRT(initial_state);
         }
 
-        {
-            std::lock_guard<std::mutex> lock(async_cmd_mutex_);
-            desired_position_ = initial_width;
-            desired_effort_ = max_force_ / 2.0;
-            new_cmd_available_ = false;
-        }
+        desired_position_.store(initial_width, std::memory_order_relaxed);
+        desired_effort_.store(max_force_ / 2.0, std::memory_order_relaxed);
+        new_cmd_available_.store(false, std::memory_order_relaxed);
 
         RCLCPP_INFO(rclcpp::get_logger("OnRobotHardwareInterface"),
                     "%s configured. Initial width: %.3f m. Limits: [%.3f, %.3f] m, Max force: %.1f N",
@@ -201,6 +200,8 @@ std::vector<hardware_interface::StateInterface> OnRobotHardwareInterfaceBase::ex
     state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "position", &finger_width_state_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "velocity", &finger_width_velocity_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "effort", &finger_width_effort_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "grip_detected", &grip_detected_state_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(prefix_ + "finger_width", "busy", &busy_state_));
     return state_interfaces;
 }
 
@@ -228,15 +229,20 @@ hardware_interface::return_type OnRobotHardwareInterfaceBase::read(const rclcpp:
         finger_width_state_ += movement;
         finger_width_velocity_ = (finger_width_state_ - prev_pos) / dt;
         finger_width_effort_ = (std::abs(finger_width_command_ - finger_width_state_) < 0.001) ? finger_width_effort_command_ : 0.0;
+        busy_state_ = (std::abs(finger_width_command_ - finger_width_state_) > 0.0005) ? 1.0 : 0.0;
+        grip_detected_state_ = (busy_state_ == 0.0 && finger_width_command_ < max_width_ && finger_width_command_ > min_width_) ? 1.0 : 0.0;
         return hardware_interface::return_type::OK;
     }
 
-    // Real-Time Decoupled Read: Instantaneous memory read without waiting on network bus
+    // Real-Time Decoupled Read: Lock-free O(1) buffer read without waiting on network bus
+    const GripperStateData *state = state_buffer_.readFromRT();
+    if (state)
     {
-        std::lock_guard<std::mutex> lock(async_state_mutex_);
-        finger_width_state_ = cached_position_;
-        finger_width_velocity_ = cached_velocity_;
-        finger_width_effort_ = cached_effort_;
+        finger_width_state_ = state->position;
+        finger_width_velocity_ = state->velocity;
+        finger_width_effort_ = state->effort;
+        grip_detected_state_ = (state->status & 0x0002) ? 1.0 : 0.0;
+        busy_state_ = (state->status & 0x0001) ? 1.0 : 0.0;
     }
 
     return hardware_interface::return_type::OK;
@@ -259,13 +265,10 @@ hardware_interface::return_type OnRobotHardwareInterfaceBase::write(const rclcpp
         return hardware_interface::return_type::OK;
     }
 
-    // Real-Time Decoupled Write: update atomic command and notify background thread without blocking
-    {
-        std::lock_guard<std::mutex> lock(async_cmd_mutex_);
-        desired_position_ = finger_width_command_;
-        desired_effort_ = finger_width_effort_command_;
-        new_cmd_available_ = true;
-    }
+    // Real-Time Decoupled Write: atomic wait-free O(1) write without mutexes
+    desired_position_.store(finger_width_command_, std::memory_order_release);
+    desired_effort_.store(finger_width_effort_command_, std::memory_order_release);
+    new_cmd_available_.store(true, std::memory_order_release);
 
     return hardware_interface::return_type::OK;
 }
@@ -299,7 +302,7 @@ void OnRobotHardwareInterfaceBase::asyncWorkerLoop()
         return;
     }
 
-    double last_position = cached_position_;
+    double last_position = finger_width_state_;
     auto last_time = std::chrono::steady_clock::now();
     double last_sent_position = -1.0;
     double last_sent_effort = -1.0;
@@ -311,24 +314,12 @@ void OnRobotHardwareInterfaceBase::asyncWorkerLoop()
 
         try
         {
-            // 1. Process pending write commands
-            double cmd_pos = 0.0;
-            double cmd_eff = 0.0;
-            bool has_new_cmd = false;
-
+            // 1. Process pending write commands (wait-free retrieval from RT thread)
+            if (new_cmd_available_.exchange(false, std::memory_order_acq_rel))
             {
-                std::lock_guard<std::mutex> lock(async_cmd_mutex_);
-                if (new_cmd_available_)
-                {
-                    cmd_pos = desired_position_;
-                    cmd_eff = desired_effort_;
-                    has_new_cmd = true;
-                    new_cmd_available_ = false;
-                }
-            }
+                double cmd_pos = desired_position_.load(std::memory_order_acquire);
+                double cmd_eff = desired_effort_.load(std::memory_order_acquire);
 
-            if (has_new_cmd)
-            {
                 if (cmd_eff > 0.0 && std::abs(cmd_eff - last_sent_effort) > 0.5)
                 {
                     gripper->setTargetForce(static_cast<float>(cmd_eff));
@@ -362,21 +353,16 @@ void OnRobotHardwareInterfaceBase::asyncWorkerLoop()
             }
             last_time = now;
 
-            // 3. Update state cache
-            {
-                std::lock_guard<std::mutex> lock(async_state_mutex_);
-                if (curr_width >= 0.0f)
-                {
-                    cached_position_ = static_cast<double>(curr_width);
-                    cached_velocity_ = curr_velocity;
-                }
-                if (curr_force >= 0.0f)
-                {
-                    cached_effort_ = static_cast<double>(curr_force);
-                }
-                cached_status_ = curr_status;
-                comm_healthy_ = true;
-            }
+            // 3. Update RealtimeBuffer from non-RT thread (safe lock-free swap for RT thread)
+            GripperStateData state_data;
+            state_data.position = (curr_width >= 0.0f) ? static_cast<double>(curr_width) : last_position;
+            state_data.velocity = curr_velocity;
+            state_data.effort = (curr_force >= 0.0f) ? static_cast<double>(curr_force) : 0.0;
+            state_data.status = curr_status;
+            state_data.healthy = true;
+
+            state_buffer_.writeFromNonRT(state_data);
+            comm_healthy_ = true;
         }
         catch (const std::exception &ex)
         {

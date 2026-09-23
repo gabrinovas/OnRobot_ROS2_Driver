@@ -105,6 +105,20 @@ hardware_interface::CallbackReturn VGC10HardwareInterface::on_init(const hardwar
 
 hardware_interface::CallbackReturn VGC10HardwareInterface::on_configure(const rclcpp_lifecycle::State &)
 {
+    VGC10StateData initial_state;
+    initial_state.vacuum_a = 0.0;
+    initial_state.effort_a = 0.0;
+    initial_state.vacuum_b = 0.0;
+    initial_state.effort_b = 0.0;
+    initial_state.healthy = true;
+    state_buffer_.initRT(initial_state);
+
+    desired_vacuum_a_.store(0.0, std::memory_order_relaxed);
+    desired_vacuum_b_.store(0.0, std::memory_order_relaxed);
+    desired_effort_a_.store(60.0, std::memory_order_relaxed);
+    desired_effort_b_.store(60.0, std::memory_order_relaxed);
+    new_cmd_available_.store(false, std::memory_order_relaxed);
+
     if (use_fake_hardware_)
     {
         RCLCPP_INFO(rclcpp::get_logger("VGC10HardwareInterface"), "Configuring fake hardware for VGC10");
@@ -193,11 +207,15 @@ std::vector<hardware_interface::StateInterface> VGC10HardwareInterface::export_s
     state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_a_, "position", &vacuum_a_state_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_a_, "velocity", &vacuum_a_velocity_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_a_, "effort", &vacuum_a_effort_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_a_, "vacuum_level", &vacuum_a_level_state_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_a_, "pressure_kpa", &pressure_a_kpa_state_));
 
     // Channel B
     state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_b_, "position", &vacuum_b_state_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_b_, "velocity", &vacuum_b_velocity_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_b_, "effort", &vacuum_b_effort_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_b_, "vacuum_level", &vacuum_b_level_state_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(joint_name_b_, "pressure_kpa", &pressure_b_kpa_state_));
 
     return state_interfaces;
 }
@@ -231,22 +249,32 @@ hardware_interface::return_type VGC10HardwareInterface::read(const rclcpp::Time 
         vacuum_a_state_ += (vacuum_a_command_ - vacuum_a_state_) * 0.15;
         vacuum_a_velocity_ = (vacuum_a_state_ - prev_a) / dt;
         vacuum_a_effort_ = vacuum_a_state_ * 80.0; // 0 to 80%
+        vacuum_a_level_state_ = vacuum_a_state_;
+        pressure_a_kpa_state_ = -100.0 * vacuum_a_state_;
 
         double prev_b = vacuum_b_state_;
         vacuum_b_state_ += (vacuum_b_command_ - vacuum_b_state_) * 0.15;
         vacuum_b_velocity_ = (vacuum_b_state_ - prev_b) / dt;
         vacuum_b_effort_ = vacuum_b_state_ * 80.0;
+        vacuum_b_level_state_ = vacuum_b_state_;
+        pressure_b_kpa_state_ = -100.0 * vacuum_b_state_;
 
         return hardware_interface::return_type::OK;
     }
 
-    // Real-Time decoupled read from cached state
+    // Real-Time decoupled lock-free read from RealtimeBuffer (O(1))
+    const VGC10StateData *state = state_buffer_.readFromRT();
+    if (state)
     {
-        std::lock_guard<std::mutex> lock(async_state_mutex_);
-        vacuum_a_state_ = cached_vacuum_a_;
-        vacuum_a_effort_ = cached_effort_a_;
-        vacuum_b_state_ = cached_vacuum_b_;
-        vacuum_b_effort_ = cached_effort_b_;
+        vacuum_a_state_ = state->vacuum_a;
+        vacuum_a_effort_ = state->effort_a;
+        vacuum_a_level_state_ = state->vacuum_a;
+        pressure_a_kpa_state_ = -100.0 * state->vacuum_a;
+
+        vacuum_b_state_ = state->vacuum_b;
+        vacuum_b_effort_ = state->effort_b;
+        vacuum_b_level_state_ = state->vacuum_b;
+        pressure_b_kpa_state_ = -100.0 * state->vacuum_b;
     }
 
     return hardware_interface::return_type::OK;
@@ -263,14 +291,12 @@ hardware_interface::return_type VGC10HardwareInterface::write(const rclcpp::Time
     double clamped_a = std::max(0.0, std::min(vacuum_a_command_, 1.0));
     double clamped_b = std::max(0.0, std::min(vacuum_b_command_, 1.0));
 
-    {
-        std::lock_guard<std::mutex> lock(async_cmd_mutex_);
-        desired_vacuum_a_ = clamped_a;
-        desired_vacuum_b_ = clamped_b;
-        desired_effort_a_ = vacuum_a_effort_command_;
-        desired_effort_b_ = vacuum_b_effort_command_;
-        new_cmd_available_ = true;
-    }
+    // Wait-free atomic write without mutexes (O(1))
+    desired_vacuum_a_.store(clamped_a, std::memory_order_release);
+    desired_vacuum_b_.store(clamped_b, std::memory_order_release);
+    desired_effort_a_.store(vacuum_a_effort_command_, std::memory_order_release);
+    desired_effort_b_.store(vacuum_b_effort_command_, std::memory_order_release);
+    new_cmd_available_.store(true, std::memory_order_release);
 
     return hardware_interface::return_type::OK;
 }
@@ -309,28 +335,14 @@ void VGC10HardwareInterface::asyncWorkerLoop()
 
         try
         {
-            // 1. Process pending write commands
-            double cmd_a = 0.0;
-            double cmd_b = 0.0;
-            double eff_a = 60.0;
-            double eff_b = 60.0;
-            bool has_new_cmd = false;
-
+            // 1. Process pending write commands (wait-free retrieval from RT thread)
+            if (new_cmd_available_.exchange(false, std::memory_order_acq_rel))
             {
-                std::lock_guard<std::mutex> lock(async_cmd_mutex_);
-                if (new_cmd_available_)
-                {
-                    cmd_a = desired_vacuum_a_;
-                    cmd_b = desired_vacuum_b_;
-                    eff_a = desired_effort_a_;
-                    eff_b = desired_effort_b_;
-                    has_new_cmd = true;
-                    new_cmd_available_ = false;
-                }
-            }
+                double cmd_a = desired_vacuum_a_.load(std::memory_order_acquire);
+                double cmd_b = desired_vacuum_b_.load(std::memory_order_acquire);
+                double eff_a = desired_effort_a_.load(std::memory_order_acquire);
+                double eff_b = desired_effort_b_.load(std::memory_order_acquire);
 
-            if (has_new_cmd)
-            {
                 // Channel A control
                 if (std::abs(cmd_a - last_sent_a) > 0.02)
                 {
@@ -367,11 +379,13 @@ void VGC10HardwareInterface::asyncWorkerLoop()
             float vac_b = 0.0f;
             if (gripper_->readBothVacuums(vac_a, vac_b))
             {
-                std::lock_guard<std::mutex> lock(async_state_mutex_);
-                cached_vacuum_a_ = vac_a;
-                cached_effort_a_ = vac_a * 100.0; // in %
-                cached_vacuum_b_ = vac_b;
-                cached_effort_b_ = vac_b * 100.0;
+                VGC10StateData data;
+                data.vacuum_a = static_cast<double>(vac_a);
+                data.effort_a = static_cast<double>(vac_a * 100.0f);
+                data.vacuum_b = static_cast<double>(vac_b);
+                data.effort_b = static_cast<double>(vac_b * 100.0f);
+                data.healthy = true;
+                state_buffer_.writeFromNonRT(data);
             }
 
             comm_healthy_ = true;

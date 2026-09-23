@@ -13,11 +13,21 @@
 #include "hardware_interface/hardware_info.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "realtime_tools/realtime_buffer.hpp"
 
 #include "OnRobotGripperBase.hpp"
 
 namespace onrobot_driver
 {
+
+struct GripperStateData
+{
+    double position{0.035};
+    double velocity{0.0};
+    double effort{0.0};
+    uint16_t status{0};
+    bool healthy{true};
+};
 
 class OnRobotHardwareInterfaceBase : public hardware_interface::ActuatorInterface
 {
@@ -68,6 +78,8 @@ protected:
     double finger_width_state_{0.035};
     double finger_width_velocity_{0.0};
     double finger_width_effort_{0.0};
+    double grip_detected_state_{0.0};
+    double busy_state_{0.0};
     double finger_width_command_{0.035};
     double finger_width_effort_command_{35.0};
 
@@ -80,17 +92,12 @@ protected:
     std::atomic<bool> worker_running_{false};
     std::atomic<bool> comm_healthy_{true};
 
-    // Shared state cache between async worker and RT loop
-    std::mutex async_state_mutex_;
-    double cached_position_{0.035};
-    double cached_velocity_{0.0};
-    double cached_effort_{0.0};
-    uint16_t cached_status_{0};
+    // Lock-free real-time state buffer: worker writes, RT loop reads (O(1) wait-free / lock-free)
+    realtime_tools::RealtimeBuffer<GripperStateData> state_buffer_;
 
-    // Shared command cache from RT loop to async worker
-    std::mutex async_cmd_mutex_;
-    double desired_position_{0.035};
-    double desired_effort_{35.0};
+    // Wait-free atomic command buffer from RT loop to worker thread
+    std::atomic<double> desired_position_{0.035};
+    std::atomic<double> desired_effort_{35.0};
     std::atomic<bool> new_cmd_available_{false};
 
     rclcpp::Clock clock_{RCL_STEADY_TIME};
