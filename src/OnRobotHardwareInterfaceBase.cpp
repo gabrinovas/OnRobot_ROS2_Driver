@@ -59,7 +59,9 @@ hardware_interface::CallbackReturn OnRobotHardwareInterfaceBase::on_init(const h
     // 4. Fake hardware mode
     if (info.hardware_parameters.find("use_fake_hardware") != info.hardware_parameters.end())
     {
-        use_fake_hardware_ = (info.hardware_parameters.at("use_fake_hardware") == "true");
+        std::string fake_val = info.hardware_parameters.at("use_fake_hardware");
+        std::transform(fake_val.begin(), fake_val.end(), fake_val.begin(), ::tolower);
+        use_fake_hardware_ = (fake_val == "true" || fake_val == "1");
     }
 
     // 5. Prefix

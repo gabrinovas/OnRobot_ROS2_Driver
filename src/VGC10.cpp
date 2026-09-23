@@ -261,8 +261,6 @@ float VGC10::getWidth()
     }
     return (getVacuumChannelA() + getVacuumChannelB()) / 2.0f;
 }
-    return (vac_a + vac_b) / 2.0f;
-}
 
 float VGC10::getForce()
 {

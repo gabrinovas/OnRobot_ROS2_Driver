@@ -68,7 +68,9 @@ hardware_interface::CallbackReturn VGC10HardwareInterface::on_init(const hardwar
     }
     if (info_.hardware_parameters.find("use_fake_hardware") != info_.hardware_parameters.end())
     {
-        use_fake_hardware_ = (info_.hardware_parameters.at("use_fake_hardware") == "true");
+        std::string fake_val = info_.hardware_parameters.at("use_fake_hardware");
+        std::transform(fake_val.begin(), fake_val.end(), fake_val.begin(), ::tolower);
+        use_fake_hardware_ = (fake_val == "true" || fake_val == "1");
     }
     if (info_.hardware_parameters.find("prefix") != info_.hardware_parameters.end())
     {
@@ -376,9 +378,9 @@ void VGC10HardwareInterface::asyncWorkerLoop()
         }
         catch (const std::exception &e)
         {
-            comm_healthy_ = false;
+            static rclcpp::Clock steady_clock(RCL_STEADY_TIME);
             RCLCPP_WARN_THROTTLE(rclcpp::get_logger("VGC10HardwareInterface"),
-                                 *rclcpp::get_current_node()->get_clock(), 2000,
+                                 steady_clock, 2000,
                                  "Modbus communication error with VGC10: %s. Attempting background recovery...", e.what());
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             try
