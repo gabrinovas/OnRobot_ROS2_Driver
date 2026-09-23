@@ -16,7 +16,7 @@ Este directorio contiene scripts de ejemplo para probar secuencias de trayectori
 
 ## Prerrequisitos
 
-- Driver o simulación de Universal Robots activa (`ur_robot_driver` o simulación en Gazebo/Isaac).
+- Driver o simulación de Universal Robots activa (`ur_robot_driver` o simulación con `ros2_control` / URSim).
 - Controlador `scaled_joint_trajectory_controller` activo para el brazo UR.
 - Driver de la pinza activo (`ros2 launch onrobot_driver onrobot_control.launch.py ...`).
 - Dependencias de Python adicionales:
