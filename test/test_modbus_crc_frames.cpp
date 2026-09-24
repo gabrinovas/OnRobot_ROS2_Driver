@@ -2,7 +2,7 @@
 #include <vector>
 #include <cstdint>
 
-#include "MB/crc.hpp"
+// Nota: modbusRequest.hpp incluye modbusUtils.hpp que ya incluye MB/crc.hpp con guardas
 #include "MB/modbusRequest.hpp"
 #include "MB/modbusResponse.hpp"
 #include "MB/modbusException.hpp"
