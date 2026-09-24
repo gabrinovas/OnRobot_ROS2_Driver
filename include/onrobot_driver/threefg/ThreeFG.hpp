@@ -15,6 +15,7 @@ public:
     ThreeFG(const std::string &device, int device_address);
     ThreeFG(const std::string &device, int device_address,
             std::function<bool()> keep_running);
+    ThreeFG(int device_address, std::unique_ptr<IModbusConnection> connection);
     ~ThreeFG() override;
 
     // Read commands

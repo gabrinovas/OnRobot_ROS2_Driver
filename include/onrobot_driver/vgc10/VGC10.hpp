@@ -33,6 +33,7 @@ public:
     VGC10(const std::string &type, const std::string &device, int device_address);
     VGC10(const std::string &type, const std::string &device, int device_address,
           std::function<bool()> keep_running);
+    VGC10(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection);
     ~VGC10() override;
 
     // Overridden base read commands (mapped to average/combined vacuum)

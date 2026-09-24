@@ -35,6 +35,14 @@ public:
     void close();
     bool isConnected() const;
 
+    // Inject custom/mock connection for testing or alternate transports
+    void setConnection(std::unique_ptr<IModbusConnection> connection)
+    {
+        std::lock_guard<std::mutex> lock(comm_mutex_);
+        connection_ = std::move(connection);
+        connection_type_ = "mock";
+    }
+
     // Diagnostic metrics
     uint64_t getTotalRequests() const { return total_requests_.load(); }
     uint64_t getFailedRequests() const { return failed_requests_.load(); }

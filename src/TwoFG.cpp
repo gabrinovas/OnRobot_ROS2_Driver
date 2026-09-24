@@ -40,6 +40,13 @@ TwoFG::TwoFG(const std::string &type, const std::string &device, int device_addr
     setTargetSpeed(default_speed_);
 }
 
+TwoFG::TwoFG(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection)
+    : onrobot_driver::OnRobotGripperBase(device_address), type(type)
+{
+    setConnection(std::move(connection));
+    initParams();
+}
+
 TwoFG::~TwoFG()
 {
     close();

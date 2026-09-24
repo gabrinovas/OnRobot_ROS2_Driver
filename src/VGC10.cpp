@@ -37,6 +37,13 @@ VGC10::VGC10(const std::string &type, const std::string &device, int device_addr
     initParams();
 }
 
+VGC10::VGC10(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection)
+    : OnRobotGripperBase(device_address), type_(type)
+{
+    setConnection(std::move(connection));
+    initParams();
+}
+
 VGC10::~VGC10()
 {
     try

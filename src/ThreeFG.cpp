@@ -36,6 +36,13 @@ ThreeFG::ThreeFG(const std::string &device, int device_address,
     setTargetSpeed(default_speed_);
 }
 
+ThreeFG::ThreeFG(int device_address, std::unique_ptr<IModbusConnection> connection)
+    : onrobot_driver::OnRobotGripperBase(device_address)
+{
+    setConnection(std::move(connection));
+    initParams();
+}
+
 ThreeFG::~ThreeFG()
 {
     close();

@@ -15,6 +15,7 @@ public:
     TwoFG(const std::string &type, const std::string &device, int device_address);
     TwoFG(const std::string &type, const std::string &device, int device_address,
           std::function<bool()> keep_running);
+    TwoFG(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection);
     ~TwoFG() override;
 
     // Read commands
