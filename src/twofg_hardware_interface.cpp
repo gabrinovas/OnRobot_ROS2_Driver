@@ -7,8 +7,8 @@ namespace onrobot_driver
 TwoFGHardwareInterface::TwoFGHardwareInterface()
 {
     onrobot_type_ = "2fg7";
-    min_width_ = 0.0;
-    max_width_ = 0.070;
+    min_width_ = 0.035;
+    max_width_ = 0.073;
     max_force_ = 70.0;
     finger_width_state_ = 0.035;
     finger_width_command_ = 0.035;

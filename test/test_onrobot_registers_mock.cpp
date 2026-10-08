@@ -94,8 +94,8 @@ protected:
 };
 
 TEST_F(TwoFGRegistersTest, PhysicalLimitsAndConversions) {
-    EXPECT_FLOAT_EQ(gripper->getMinWidth(), 0.0f);
-    EXPECT_FLOAT_EQ(gripper->getMaxWidth(), 0.07f);
+    EXPECT_FLOAT_EQ(gripper->getMinWidth(), 0.035f);
+    EXPECT_FLOAT_EQ(gripper->getMaxWidth(), 0.073f);
     EXPECT_FLOAT_EQ(gripper->getMaxForce(), 70.0f);
 
     EXPECT_FLOAT_EQ(onrobot_driver::OnRobotGripperBase::fromTenthMM(350), 0.035f);
