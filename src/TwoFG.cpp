@@ -1,100 +1,64 @@
 #include "onrobot_driver/twofg/TwoFG.hpp"
-#include "onrobot_driver/common/TCPConnectionWrapper.hpp"
-#include "onrobot_driver/common/SerialConnectionWrapper.hpp"
-#include <chrono>
-#include <thread>
 
 TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int device_address)
-    : type(type), device_address_(device_address)
+    : TwoFG(type, ip, port, device_address, nullptr)
+{
+}
+
+TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int device_address,
+             std::function<bool()> keep_running, int timeout_ms)
+    : onrobot_driver::OnRobotGripperBase(device_address), type(type)
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
-    if (type != "2fg7" && type != "2fg14")
-        throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
+    if (type != "2fg7")
+        throw std::invalid_argument("Please specify '2fg7'.");
 
-    // Attempt to establish TCP connection, retrying until successful
-    while (true) {
-        try {
-            connection = std::make_unique<TCPConnectionWrapper>(ip, port);
-            break;
-        } catch (const std::exception &ex) {
-            std::cerr << "Failed to establish TCP connection: " << ex.what()
-                      << ". Retrying in 1 second..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-    }
-
+    connectTCP(ip, port, keep_running, timeout_ms);
     initParams();
     setTargetForce(default_force_);
     setTargetSpeed(default_speed_);
 }
 
 TwoFG::TwoFG(const std::string &type, const std::string &device, int device_address)
-    : type(type), device_address_(device_address)
+    : TwoFG(type, device, device_address, nullptr)
+{
+}
+
+TwoFG::TwoFG(const std::string &type, const std::string &device, int device_address,
+             std::function<bool()> keep_running)
+    : onrobot_driver::OnRobotGripperBase(device_address), type(type)
 {
     if (device.empty())
         throw std::invalid_argument("Please provide a serial device for connection.");
-    if (type != "2fg7" && type != "2fg14")
-        throw std::invalid_argument("Please specify either '2fg7' or '2fg14'.");
+    if (type != "2fg7")
+        throw std::invalid_argument("Please specify '2fg7'.");
 
-    // Attempt to establish Serial connection, retrying until successful
-    while (true) {
-        try {
-            connection = std::make_unique<SerialConnectionWrapper>(device);
-            break;
-        } catch (const std::exception &ex) {
-            std::cerr << "Failed to establish Serial connection: " << ex.what()
-                      << ". Retrying in 1 second..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-    }
-
+    connectSerial(device, keep_running);
     initParams();
     setTargetForce(default_force_);
     setTargetSpeed(default_speed_);
 }
 
+TwoFG::TwoFG(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection)
+    : onrobot_driver::OnRobotGripperBase(device_address), type(type)
+{
+    setConnection(std::move(connection));
+    initParams();
+}
+
 TwoFG::~TwoFG()
 {
-    if (connection)
-        connection->close();
+    close();
 }
 
 void TwoFG::initParams()
 {
-    if (type == "2fg7") {
-        max_width_ = MAX_WIDTH_2FG7;
-        max_force_ = MAX_FORCE_2FG7;
-    } else { // 2fg14
-        max_width_ = MAX_WIDTH_2FG14;
-        max_force_ = MAX_FORCE_2FG14;
-    }
+    max_width_ = MAX_WIDTH_2FG7;
+    max_force_ = MAX_FORCE_2FG7;
     
     default_force_ = max_force_ / 2;
     default_speed_ = 50.0f; // 50% speed
-}
-
-MB::ModbusResponse TwoFG::sendRequest(const MB::ModbusRequest &req)
-{
-    try
-    {
-        return connection->sendRequest(req);
-    }
-    catch (const MB::ModbusException &ex)
-    {
-        std::cerr << "Modbus exception: " << ex.what() << std::endl;
-        throw;
-    }
-}
-
-float TwoFG::fromTenthMM(uint16_t tenth_mm)
-{
-    return static_cast<float>(tenth_mm) / 10000.0f; // Convert 1/10 mm to meters
-}
-
-uint16_t TwoFG::toTenthMM(float meters)
-{
-    return static_cast<uint16_t>(meters * 10000.0f); // Convert meters to 1/10 mm
 }
 
 void TwoFG::moveGripper(float width_val, bool external_grip)
@@ -210,6 +174,22 @@ float TwoFG::getWidth()
     }
 }
 
+float TwoFG::getForce()
+{
+    MB::ModbusRequest req(device_address_, MB::utils::ReadAnalogOutputHoldingRegisters, REG_FORCE, 1);
+    try
+    {
+        MB::ModbusResponse resp = sendRequest(req);
+        uint16_t regValue = resp.registerValues().front().isReg() ? resp.registerValues().front().reg() : 0;
+        return static_cast<float>(regValue); // Force in Newtons per OnRobot Connectivity Guide
+    }
+    catch (const MB::ModbusException &)
+    {
+        std::cerr << "Failed to read force." << std::endl;
+        return -1.0f;
+    }
+}
+
 std::vector<int> TwoFG::getStatus()
 {
     std::vector<int> status_list(4, 0);
@@ -238,12 +218,17 @@ uint16_t TwoFG::getStatusRaw()
     }
 }
 
-float TwoFG::getMinWidth()
+float TwoFG::getMinWidth() const
 {
     return MIN_WIDTH;
 }
 
-float TwoFG::getMaxWidth()
+float TwoFG::getMaxWidth() const
 {
     return max_width_;
+}
+
+float TwoFG::getMaxForce() const
+{
+    return max_force_;
 }

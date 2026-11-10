@@ -1,58 +1,54 @@
 #pragma once
+
 #include <memory>
 #include <vector>
 #include <string>
-#include <stdexcept>
-#include <iostream>
-#include <thread>
+#include <functional>
 
-#include "../common/IModbusConnection.hpp"
-#include "../common/TCPConnectionWrapper.hpp"
-#include "../common/SerialConnectionWrapper.hpp"
-#include "MB/modbusRequest.hpp"
-#include "MB/modbusResponse.hpp"
-#include "MB/modbusException.hpp"
-#include "MB/modbusUtils.hpp"
+#include "../common/OnRobotGripperBase.hpp"
 
-class TwoFG {
+class TwoFG : public onrobot_driver::OnRobotGripperBase {
 public:
-    // Remove default parameters to avoid ambiguity
     TwoFG(const std::string &type, const std::string &ip, int port, int device_address);
+    TwoFG(const std::string &type, const std::string &ip, int port, int device_address,
+          std::function<bool()> keep_running, int timeout_ms = TCPConnectionWrapper::DefaultTimeoutMs);
     TwoFG(const std::string &type, const std::string &device, int device_address);
-    ~TwoFG();
+    TwoFG(const std::string &type, const std::string &device, int device_address,
+          std::function<bool()> keep_running);
+    TwoFG(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection);
+    ~TwoFG() override;
 
     // Read commands
-    float getWidth();
-    std::vector<int> getStatus();
-    uint16_t getStatusRaw();
+    float getWidth() override;
+    float getForce() override;
+    uint16_t getStatusRaw() override;
+    std::vector<int> getStatus() override;
     
     // Write commands
-    void setTargetForce(float force_val);
-    void setTargetWidth(float width_val);
-    void setTargetSpeed(float speed_val);
+    void setTargetForce(float force_val) override;
+    void setTargetWidth(float width_val) override;
+    void setTargetSpeed(float speed_val) override;
     void setCommand(uint16_t command);
     
     // Gripper control commands
     void gripExternal();
     void gripInternal();
-    void stop();
-    void moveGripper(float width_val, bool external_grip = true);
+    void stop() override;
+    void moveGripper(float width_val) override { moveGripper(width_val, true); }
+    void moveGripper(float width_val, bool external_grip);
 
     // Utility functions
-    float getMinWidth();
-    float getMaxWidth();
+    float getMinWidth() const override;
+    float getMaxWidth() const override;
+    float getMaxForce() const override;
 
 private:
-    std::unique_ptr<IModbusConnection> connection;
     std::string type;
-    int device_address_;
     
-    // 2FG specifications
-    static constexpr float MAX_WIDTH_2FG7 = 0.07f;
-    static constexpr float MAX_WIDTH_2FG14 = 0.14f;
-    static constexpr float MIN_WIDTH = 0.0f;
+    // 2FG7 specifications (outwards mounted fingers, range 35-73 mm)
+    static constexpr float MAX_WIDTH_2FG7 = 0.073f;
+    static constexpr float MIN_WIDTH = 0.035f;
     static constexpr float MAX_FORCE_2FG7 = 70.0f;
-    static constexpr float MAX_FORCE_2FG14 = 140.0f;
 
     // Default parameters
     float default_force_;
@@ -85,8 +81,5 @@ private:
     static constexpr uint16_t STATUS_ERROR_NOT_CALIBRATED = 0x0008;
     static constexpr uint16_t STATUS_ERROR_LINEAR_SENSOR = 0x0010;
 
-    MB::ModbusResponse sendRequest(const MB::ModbusRequest &req);
-    float fromTenthMM(uint16_t tenth_mm);
-    uint16_t toTenthMM(float meters);
     void initParams();
 };

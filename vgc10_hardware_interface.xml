@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<library path="onrobot_vgc10_driver_plugin">
+  <class name="onrobot_driver::VGC10HardwareInterface"
+         type="onrobot_driver::VGC10HardwareInterface"
+         base_class_type="hardware_interface::ActuatorInterface">
+    <description>
+        ROS 2 Control hardware interface for the OnRobot VGC10 vacuum gripper with dual independent channels.
+    </description>
+  </class>
+</library>
