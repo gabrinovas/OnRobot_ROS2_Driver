@@ -6,7 +6,7 @@ TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int devic
 }
 
 TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int device_address,
-             std::function<bool()> keep_running)
+             std::function<bool()> keep_running, int timeout_ms)
     : onrobot_driver::OnRobotGripperBase(device_address), type(type)
 {
     if (ip.empty())
@@ -14,7 +14,7 @@ TwoFG::TwoFG(const std::string &type, const std::string &ip, int port, int devic
     if (type != "2fg7")
         throw std::invalid_argument("Please specify '2fg7'.");
 
-    connectTCP(ip, port, keep_running);
+    connectTCP(ip, port, keep_running, timeout_ms);
     initParams();
     setTargetForce(default_force_);
     setTargetSpeed(default_speed_);

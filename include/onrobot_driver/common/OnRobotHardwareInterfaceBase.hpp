@@ -70,6 +70,8 @@ protected:
     int port_{502};
     std::string device_;
     int device_address_{65};
+    int timeout_ms_{TCPConnectionWrapper::DefaultTimeoutMs};  // Modbus TCP response timeout
+    int configure_attempts_{5};                               // Connection attempts in on_configure
     bool use_fake_hardware_{false};
     std::string prefix_;
     hardware_interface::HardwareInfo info_;

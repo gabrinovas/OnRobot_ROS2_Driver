@@ -33,7 +33,7 @@ bool TwoFGHardwareInterface::instantiateGripper()
 {
     if (connection_type_ == "tcp")
     {
-        gripper_ = std::make_unique<TwoFG>(onrobot_type_, ip_address_, port_, device_address_, []() { return rclcpp::ok(); });
+        gripper_ = std::make_unique<TwoFG>(onrobot_type_, ip_address_, port_, device_address_, []() { return rclcpp::ok(); }, timeout_ms_);
     }
     else if (connection_type_ == "serial")
     {

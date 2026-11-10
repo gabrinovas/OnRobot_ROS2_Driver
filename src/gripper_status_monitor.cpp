@@ -31,6 +31,7 @@ public:
         this->declare_parameter("connection_type", "tcp");
         this->declare_parameter("ip_address", "192.168.1.1");
         this->declare_parameter("port", 502);
+        this->declare_parameter("timeout_ms", TCPConnectionWrapper::DefaultTimeoutMs);
         this->declare_parameter("device", "/tmp/ttyUR");
         this->declare_parameter("compute_box_address", 63);
         this->declare_parameter("use_fake_hardware", false);
@@ -39,6 +40,7 @@ public:
         connection_type_ = this->get_parameter("connection_type").as_string();
         ip_address_ = this->get_parameter("ip_address").as_string();
         port_ = this->get_parameter("port").as_int();
+        timeout_ms_ = static_cast<int>(this->get_parameter("timeout_ms").as_int());
         device_ = this->get_parameter("device").as_string();
         compute_box_address_ = this->get_parameter("compute_box_address").as_int();
         use_fake_hardware_ = this->get_parameter("use_fake_hardware").as_bool();
@@ -233,7 +235,7 @@ private:
             std::unique_ptr<IModbusConnection> conn;
             if (connection_type_ == "tcp")
             {
-                conn = std::make_unique<TCPConnectionWrapper>(ip_address_, port_);
+                conn = std::make_unique<TCPConnectionWrapper>(ip_address_, port_, timeout_ms_);
             }
             else
             {
@@ -289,6 +291,7 @@ private:
     std::string connection_type_;
     std::string ip_address_;
     int port_;
+    int timeout_ms_{TCPConnectionWrapper::DefaultTimeoutMs};
     std::string device_;
     int compute_box_address_;
     bool use_fake_hardware_;

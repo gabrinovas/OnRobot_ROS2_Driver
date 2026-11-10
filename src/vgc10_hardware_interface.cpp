@@ -66,6 +66,10 @@ hardware_interface::CallbackReturn VGC10HardwareInterface::on_init(const hardwar
     {
         device_address_ = std::stoi(info_.hardware_parameters.at("device_address"));
     }
+    if (info_.hardware_parameters.find("timeout_ms") != info_.hardware_parameters.end())
+    {
+        timeout_ms_ = std::stoi(info_.hardware_parameters.at("timeout_ms"));
+    }
     if (info_.hardware_parameters.find("use_fake_hardware") != info_.hardware_parameters.end())
     {
         std::string fake_val = info_.hardware_parameters.at("use_fake_hardware");
@@ -134,7 +138,7 @@ hardware_interface::CallbackReturn VGC10HardwareInterface::on_configure(const rc
     {
         if (connection_type_ == "tcp")
         {
-            gripper_ = std::make_unique<VGC10>(onrobot_type_, ip_address_, port_, device_address_, []() { return rclcpp::ok(); });
+            gripper_ = std::make_unique<VGC10>(onrobot_type_, ip_address_, port_, device_address_, []() { return rclcpp::ok(); }, timeout_ms_);
         }
         else if (connection_type_ == "serial")
         {

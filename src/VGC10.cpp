@@ -11,13 +11,13 @@ VGC10::VGC10(const std::string &type, const std::string &ip, int port, int devic
 }
 
 VGC10::VGC10(const std::string &type, const std::string &ip, int port, int device_address,
-             std::function<bool()> keep_running)
+             std::function<bool()> keep_running, int timeout_ms)
     : OnRobotGripperBase(device_address), type_(type)
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for Compute Box TCP connection.");
 
-    connectTCP(ip, port, keep_running);
+    connectTCP(ip, port, keep_running, timeout_ms);
     initParams();
 }
 

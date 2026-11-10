@@ -1,6 +1,9 @@
 #include "onrobot_driver/common/OnRobotHardwareInterfaceBase.hpp"
 #include "rclcpp/rclcpp.hpp"
 
+#include <algorithm>
+#include <stdexcept>
+
 namespace onrobot_driver
 {
 
@@ -56,6 +59,16 @@ hardware_interface::CallbackReturn OnRobotHardwareInterfaceBase::on_init(const h
         device_address_ = std::stoi(info.hardware_parameters.at("device_address"));
     }
 
+    // 3b. Optional Modbus response timeout and startup connection attempts
+    if (info.hardware_parameters.find("timeout_ms") != info.hardware_parameters.end())
+    {
+        timeout_ms_ = std::stoi(info.hardware_parameters.at("timeout_ms"));
+    }
+    if (info.hardware_parameters.find("configure_attempts") != info.hardware_parameters.end())
+    {
+        configure_attempts_ = std::max(1, std::stoi(info.hardware_parameters.at("configure_attempts")));
+    }
+
     // 4. Fake hardware mode
     if (info.hardware_parameters.find("use_fake_hardware") != info.hardware_parameters.end())
     {
@@ -100,28 +113,58 @@ hardware_interface::CallbackReturn OnRobotHardwareInterfaceBase::on_configure(co
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
+    const std::string endpoint = (connection_type_ == "tcp") ? (ip_address_ + ":" + std::to_string(port_)) : device_;
+
+    // The Compute Box can be slow to answer the first requests after being idle, so retry the
+    // connection + first read a few times before giving up.
+    OnRobotGripperBase *gripper = nullptr;
+    float initial_width = -1.0f;
+    for (int attempt = 1; attempt <= configure_attempts_ && rclcpp::ok(); ++attempt)
+    {
+        try
+        {
+            if (!instantiateGripper())
+            {
+                throw std::runtime_error("gripper instantiation returned null");
+            }
+            gripper = getGripperBase();
+            if (!gripper)
+            {
+                throw std::runtime_error("gripper instance is null");
+            }
+            initial_width = gripper->getWidth();
+            if (initial_width < 0)
+            {
+                throw std::runtime_error("could not read initial width");
+            }
+            break;
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_WARN(rclcpp::get_logger("OnRobotHardwareInterface"),
+                        "Attempt %d/%d to configure %s at %s (unit %d, timeout %d ms) failed: %s",
+                        attempt, configure_attempts_, onrobot_type_.c_str(), endpoint.c_str(),
+                        device_address_, timeout_ms_, e.what());
+            destroyGripper();
+            gripper = nullptr;
+            initial_width = -1.0f;
+            if (attempt < configure_attempts_)
+            {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        }
+    }
+
+    if (!gripper || initial_width < 0)
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("OnRobotHardwareInterface"),
+                     "Failed to configure %s at %s (unit %d) after %d attempts",
+                     onrobot_type_.c_str(), endpoint.c_str(), device_address_, configure_attempts_);
+        return hardware_interface::CallbackReturn::ERROR;
+    }
+
     try
     {
-        if (!instantiateGripper())
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("OnRobotHardwareInterface"), "Failed to instantiate gripper %s", onrobot_type_.c_str());
-            return hardware_interface::CallbackReturn::ERROR;
-        }
-
-        OnRobotGripperBase *gripper = getGripperBase();
-        if (!gripper)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("OnRobotHardwareInterface"), "Gripper instance is null");
-            return hardware_interface::CallbackReturn::ERROR;
-        }
-
-        float initial_width = gripper->getWidth();
-        if (initial_width < 0)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("OnRobotHardwareInterface"), "Failed to read initial width from %s", onrobot_type_.c_str());
-            return hardware_interface::CallbackReturn::ERROR;
-        }
-
         finger_width_state_ = initial_width;
         finger_width_command_ = initial_width;
         finger_width_velocity_ = 0.0;

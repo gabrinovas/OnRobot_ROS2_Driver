@@ -11,7 +11,7 @@ class TwoFG : public onrobot_driver::OnRobotGripperBase {
 public:
     TwoFG(const std::string &type, const std::string &ip, int port, int device_address);
     TwoFG(const std::string &type, const std::string &ip, int port, int device_address,
-          std::function<bool()> keep_running);
+          std::function<bool()> keep_running, int timeout_ms = TCPConnectionWrapper::DefaultTimeoutMs);
     TwoFG(const std::string &type, const std::string &device, int device_address);
     TwoFG(const std::string &type, const std::string &device, int device_address,
           std::function<bool()> keep_running);

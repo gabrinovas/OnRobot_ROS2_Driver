@@ -63,6 +63,7 @@ private:
     int port_{502};
     std::string device_{"/tmp/ttyUR"};
     int device_address_{65};
+    int timeout_ms_{TCPConnectionWrapper::DefaultTimeoutMs};  // Modbus TCP response timeout
     bool use_fake_hardware_{false};
 
     // Joint names

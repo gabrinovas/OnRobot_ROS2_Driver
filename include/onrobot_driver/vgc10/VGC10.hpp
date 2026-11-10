@@ -29,7 +29,7 @@ public:
     // Constructors (TCP / Compute Box as default and primary interface)
     VGC10(const std::string &type, const std::string &ip, int port, int device_address);
     VGC10(const std::string &type, const std::string &ip, int port, int device_address,
-          std::function<bool()> keep_running);
+          std::function<bool()> keep_running, int timeout_ms = TCPConnectionWrapper::DefaultTimeoutMs);
     VGC10(const std::string &type, const std::string &device, int device_address);
     VGC10(const std::string &type, const std::string &device, int device_address,
           std::function<bool()> keep_running);
