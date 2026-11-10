@@ -11,10 +11,11 @@ class TwoFG : public onrobot_driver::OnRobotGripperBase {
 public:
     TwoFG(const std::string &type, const std::string &ip, int port, int device_address);
     TwoFG(const std::string &type, const std::string &ip, int port, int device_address,
-          std::function<bool()> keep_running);
+          std::function<bool()> keep_running, int timeout_ms = TCPConnectionWrapper::DefaultTimeoutMs);
     TwoFG(const std::string &type, const std::string &device, int device_address);
     TwoFG(const std::string &type, const std::string &device, int device_address,
           std::function<bool()> keep_running);
+    TwoFG(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection);
     ~TwoFG() override;
 
     // Read commands
@@ -44,9 +45,9 @@ public:
 private:
     std::string type;
     
-    // 2FG7 specifications
-    static constexpr float MAX_WIDTH_2FG7 = 0.07f;
-    static constexpr float MIN_WIDTH = 0.0f;
+    // 2FG7 specifications (outwards mounted fingers, range 35-73 mm)
+    static constexpr float MAX_WIDTH_2FG7 = 0.073f;
+    static constexpr float MIN_WIDTH = 0.035f;
     static constexpr float MAX_FORCE_2FG7 = 70.0f;
 
     // Default parameters

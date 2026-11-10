@@ -7,8 +7,8 @@ namespace onrobot_driver
 TwoFGHardwareInterface::TwoFGHardwareInterface()
 {
     onrobot_type_ = "2fg7";
-    min_width_ = 0.0;
-    max_width_ = 0.070;
+    min_width_ = 0.035;
+    max_width_ = 0.073;
     max_force_ = 70.0;
     finger_width_state_ = 0.035;
     finger_width_command_ = 0.035;
@@ -33,7 +33,7 @@ bool TwoFGHardwareInterface::instantiateGripper()
 {
     if (connection_type_ == "tcp")
     {
-        gripper_ = std::make_unique<TwoFG>(onrobot_type_, ip_address_, port_, device_address_, []() { return rclcpp::ok(); });
+        gripper_ = std::make_unique<TwoFG>(onrobot_type_, ip_address_, port_, device_address_, []() { return rclcpp::ok(); }, timeout_ms_);
     }
     else if (connection_type_ == "serial")
     {

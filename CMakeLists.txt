@@ -15,6 +15,7 @@ find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
@@ -36,6 +37,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  realtime_tools
   std_msgs
 )
 
@@ -276,9 +278,33 @@ pluginlib_export_plugin_description_file(hardware_interface vgc10_hardware_inter
 # Testing
 # =============================================================================
 if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
-  ament_lint_auto_find_test_dependencies()
+
+  ament_add_gtest(test_modbus_crc_frames
+    test/test_modbus_crc_frames.cpp
+  )
+  target_link_libraries(test_modbus_crc_frames
+    Modbus
+  )
+  target_include_directories(test_modbus_crc_frames PRIVATE
+    include
+    include/onrobot_driver/Modbus/include
+  )
+
+  ament_add_gtest(test_onrobot_registers_mock
+    test/test_onrobot_registers_mock.cpp
+    src/OnRobotGripperBase.cpp
+    src/TwoFG.cpp
+    src/ThreeFG.cpp
+    src/VGC10.cpp
+  )
+  target_link_libraries(test_onrobot_registers_mock
+    Modbus
+  )
+  target_include_directories(test_onrobot_registers_mock PRIVATE
+    include
+    include/onrobot_driver/Modbus/include
+  )
 endif()
 
 ament_package()

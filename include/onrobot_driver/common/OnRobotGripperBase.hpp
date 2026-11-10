@@ -29,11 +29,20 @@ public:
     virtual ~OnRobotGripperBase();
 
     // Connection methods with patient retry
-    void connectTCP(const std::string &ip, int port, std::function<bool()> keep_running = nullptr);
+    void connectTCP(const std::string &ip, int port, std::function<bool()> keep_running = nullptr,
+                    int timeout_ms = TCPConnectionWrapper::DefaultTimeoutMs);
     void connectSerial(const std::string &device, std::function<bool()> keep_running = nullptr);
     bool reconnect(int timeout_ms = 1000);
     void close();
     bool isConnected() const;
+
+    // Inject custom/mock connection for testing or alternate transports
+    void setConnection(std::unique_ptr<IModbusConnection> connection)
+    {
+        std::lock_guard<std::mutex> lock(comm_mutex_);
+        connection_ = std::move(connection);
+        connection_type_ = "mock";
+    }
 
     // Diagnostic metrics
     uint64_t getTotalRequests() const { return total_requests_.load(); }
@@ -87,6 +96,7 @@ protected:
     std::string target_endpoint_;
     std::string ip_;
     int port_{502};
+    int timeout_ms_{TCPConnectionWrapper::DefaultTimeoutMs};
     std::string device_;
 
     std::atomic<uint64_t> total_requests_{0};

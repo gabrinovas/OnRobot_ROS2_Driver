@@ -27,12 +27,13 @@ public:
     };
 
     // Constructors (TCP / Compute Box as default and primary interface)
-    VGC10(const std::string &type, const std::string &ip, int port = 502, int device_address = 65);
+    VGC10(const std::string &type, const std::string &ip, int port, int device_address);
     VGC10(const std::string &type, const std::string &ip, int port, int device_address,
-          std::function<bool()> keep_running);
-    VGC10(const std::string &type, const std::string &device, int device_address = 65);
+          std::function<bool()> keep_running, int timeout_ms = TCPConnectionWrapper::DefaultTimeoutMs);
+    VGC10(const std::string &type, const std::string &device, int device_address);
     VGC10(const std::string &type, const std::string &device, int device_address,
           std::function<bool()> keep_running);
+    VGC10(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection);
     ~VGC10() override;
 
     // Overridden base read commands (mapped to average/combined vacuum)

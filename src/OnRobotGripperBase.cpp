@@ -37,12 +37,14 @@ bool OnRobotGripperBase::isConnected() const
     return connection_ != nullptr;
 }
 
-void OnRobotGripperBase::connectTCP(const std::string &ip, int port, std::function<bool()> keep_running)
+void OnRobotGripperBase::connectTCP(const std::string &ip, int port, std::function<bool()> keep_running,
+                                    int timeout_ms)
 {
     std::lock_guard<std::mutex> lock(comm_mutex_);
     connection_type_ = "tcp";
     ip_ = ip;
     port_ = port;
+    timeout_ms_ = (timeout_ms > 0) ? timeout_ms : TCPConnectionWrapper::DefaultTimeoutMs;
     target_endpoint_ = ip + ":" + std::to_string(port);
 
     while (true)
@@ -54,7 +56,7 @@ void OnRobotGripperBase::connectTCP(const std::string &ip, int port, std::functi
 
         try
         {
-            connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip, port));
+            connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip, port, timeout_ms_));
             std::cout << "Connected to OnRobot gripper at " << target_endpoint_ << std::endl;
             break;
         }
@@ -108,7 +110,7 @@ bool OnRobotGripperBase::reconnect(int /*timeout_ms*/)
                 try { connection_->close(); } catch (...) {}
                 connection_.reset();
             }
-            connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip_, port_));
+            connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip_, port_, timeout_ms_));
             reconnect_count_++;
             std::cout << "[OnRobotGripperBase] Successfully reconnected to TCP endpoint: " << target_endpoint_ << std::endl;
             return true;
@@ -154,7 +156,7 @@ MB::ModbusResponse OnRobotGripperBase::sendRequest(const MB::ModbusRequest &req)
         {
             if (connection_type_ == "tcp" && !ip_.empty())
             {
-                connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip_, port_));
+                connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip_, port_, timeout_ms_));
                 recovered = true;
             }
             else if (connection_type_ == "serial" && !device_.empty())
@@ -202,7 +204,7 @@ MB::ModbusResponse OnRobotGripperBase::sendRequest(const MB::ModbusRequest &req)
 
             if (connection_type_ == "tcp" && !ip_.empty())
             {
-                connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip_, port_));
+                connection_ = std::unique_ptr<IModbusConnection>(new TCPConnectionWrapper(ip_, port_, timeout_ms_));
             }
             else if (connection_type_ == "serial" && !device_.empty())
             {
@@ -221,7 +223,9 @@ MB::ModbusResponse OnRobotGripperBase::sendRequest(const MB::ModbusRequest &req)
         }
         catch (const std::exception &reconn_ex)
         {
-            throw std::runtime_error(std::string("Modbus request failed and reconnect attempt failed: ") + reconn_ex.what());
+            throw std::runtime_error("Modbus request to " + target_endpoint_ + " (unit " + std::to_string(device_address_) +
+                                     ", timeout " + std::to_string(timeout_ms_) + " ms) failed (" + ex.what() +
+                                     ") and the retry after reconnecting also failed (" + reconn_ex.what() + ")");
         }
         throw;
     }

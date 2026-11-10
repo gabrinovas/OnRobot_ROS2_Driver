@@ -11,13 +11,13 @@ VGC10::VGC10(const std::string &type, const std::string &ip, int port, int devic
 }
 
 VGC10::VGC10(const std::string &type, const std::string &ip, int port, int device_address,
-             std::function<bool()> keep_running)
+             std::function<bool()> keep_running, int timeout_ms)
     : OnRobotGripperBase(device_address), type_(type)
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for Compute Box TCP connection.");
 
-    connectTCP(ip, port, keep_running);
+    connectTCP(ip, port, keep_running, timeout_ms);
     initParams();
 }
 
@@ -34,6 +34,13 @@ VGC10::VGC10(const std::string &type, const std::string &device, int device_addr
         throw std::invalid_argument("Please provide a serial device for connection.");
 
     connectSerial(device, keep_running);
+    initParams();
+}
+
+VGC10::VGC10(const std::string &type, int device_address, std::unique_ptr<IModbusConnection> connection)
+    : OnRobotGripperBase(device_address), type_(type)
+{
+    setConnection(std::move(connection));
     initParams();
 }
 
@@ -260,8 +267,6 @@ float VGC10::getWidth()
     {
     }
     return (getVacuumChannelA() + getVacuumChannelB()) / 2.0f;
-}
-    return (vac_a + vac_b) / 2.0f;
 }
 
 float VGC10::getForce()

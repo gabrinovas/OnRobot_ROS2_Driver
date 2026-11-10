@@ -6,13 +6,13 @@ ThreeFG::ThreeFG(const std::string &ip, int port, int device_address)
 }
 
 ThreeFG::ThreeFG(const std::string &ip, int port, int device_address,
-                 std::function<bool()> keep_running)
+                 std::function<bool()> keep_running, int timeout_ms)
     : onrobot_driver::OnRobotGripperBase(device_address)
 {
     if (ip.empty())
         throw std::invalid_argument("Please provide an IP address for TCP connection.");
 
-    connectTCP(ip, port, keep_running);
+    connectTCP(ip, port, keep_running, timeout_ms);
     initParams();
     setTargetForce(default_force_);
     setTargetSpeed(default_speed_);
@@ -34,6 +34,13 @@ ThreeFG::ThreeFG(const std::string &device, int device_address,
     initParams();
     setTargetForce(default_force_);
     setTargetSpeed(default_speed_);
+}
+
+ThreeFG::ThreeFG(int device_address, std::unique_ptr<IModbusConnection> connection)
+    : onrobot_driver::OnRobotGripperBase(device_address)
+{
+    setConnection(std::move(connection));
+    initParams();
 }
 
 ThreeFG::~ThreeFG()
