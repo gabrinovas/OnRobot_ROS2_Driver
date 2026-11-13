@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.12)  # object libraries that link to other targets
 project(onrobot_driver)
 
 # Enable PIC for all targets
@@ -48,13 +48,32 @@ set(MODBUS_SERIAL_COMMUNICATION ON CACHE BOOL "Enable Modbus Serial Communicatio
 add_subdirectory(include/onrobot_driver/Modbus)
 
 # =============================================================================
+# Sources shared by several targets, compiled once
+# =============================================================================
+# The gripper classes (plain C++ over Modbus) are used by the hardware plugins, the Python modules and the tests;
+# the hardware interface base (ROS) by two plugins. Each is compiled once as an object library and its objects
+# are linked into every target that used to compile the same source again.
+foreach(gripper_objects gripper_base twofg threefg vgc10)
+  add_library(onrobot_${gripper_objects}_objects OBJECT)
+  target_link_libraries(onrobot_${gripper_objects}_objects PRIVATE Modbus)
+endforeach()
+target_sources(onrobot_gripper_base_objects PRIVATE src/OnRobotGripperBase.cpp)
+target_sources(onrobot_twofg_objects PRIVATE src/TwoFG.cpp)
+target_sources(onrobot_threefg_objects PRIVATE src/ThreeFG.cpp)
+target_sources(onrobot_vgc10_objects PRIVATE src/VGC10.cpp)
+
+add_library(onrobot_hardware_interface_base_objects OBJECT src/OnRobotHardwareInterfaceBase.cpp)
+target_link_libraries(onrobot_hardware_interface_base_objects Modbus pluginlib::pluginlib)
+ament_target_dependencies(onrobot_hardware_interface_base_objects ${THIS_PACKAGE_INCLUDE_DEPENDS})
+
+# =============================================================================
 # Build the TwoFG hardware interface as a shared library
 # =============================================================================
 add_library(onrobot_twofg_driver_plugin
   SHARED
-  src/OnRobotGripperBase.cpp
-  src/OnRobotHardwareInterfaceBase.cpp
-  src/TwoFG.cpp
+  $<TARGET_OBJECTS:onrobot_gripper_base_objects>
+  $<TARGET_OBJECTS:onrobot_hardware_interface_base_objects>
+  $<TARGET_OBJECTS:onrobot_twofg_objects>
   src/twofg_hardware_interface.cpp
 )
 target_link_libraries(onrobot_twofg_driver_plugin
@@ -77,9 +96,9 @@ ament_target_dependencies(onrobot_twofg_driver_plugin
 # =============================================================================
 add_library(onrobot_threefg_driver_plugin
   SHARED
-  src/OnRobotGripperBase.cpp
-  src/OnRobotHardwareInterfaceBase.cpp
-  src/ThreeFG.cpp
+  $<TARGET_OBJECTS:onrobot_gripper_base_objects>
+  $<TARGET_OBJECTS:onrobot_hardware_interface_base_objects>
+  $<TARGET_OBJECTS:onrobot_threefg_objects>
   src/threefg_hardware_interface.cpp
 )
 target_link_libraries(onrobot_threefg_driver_plugin
@@ -102,8 +121,8 @@ ament_target_dependencies(onrobot_threefg_driver_plugin
 # =============================================================================
 add_library(onrobot_vgc10_driver_plugin
   SHARED
-  src/OnRobotGripperBase.cpp
-  src/VGC10.cpp
+  $<TARGET_OBJECTS:onrobot_gripper_base_objects>
+  $<TARGET_OBJECTS:onrobot_vgc10_objects>
   src/vgc10_hardware_interface.cpp
 )
 target_link_libraries(onrobot_vgc10_driver_plugin
@@ -152,8 +171,8 @@ message(STATUS "Python3 interpreter: ${Python3_EXECUTABLE}")
 
 # Create TwoFG Python module
 pybind11_add_module(TwoFG
-  src/OnRobotGripperBase.cpp
-  src/TwoFG.cpp
+  $<TARGET_OBJECTS:onrobot_gripper_base_objects>
+  $<TARGET_OBJECTS:onrobot_twofg_objects>
   src/TwoFG_binding.cpp
 )
 target_include_directories(TwoFG
@@ -171,8 +190,8 @@ target_link_libraries(TwoFG
 
 # Create ThreeFG Python module
 pybind11_add_module(ThreeFG
-  src/OnRobotGripperBase.cpp
-  src/ThreeFG.cpp
+  $<TARGET_OBJECTS:onrobot_gripper_base_objects>
+  $<TARGET_OBJECTS:onrobot_threefg_objects>
   src/ThreeFG_binding.cpp
 )
 target_include_directories(ThreeFG
@@ -190,8 +209,8 @@ target_link_libraries(ThreeFG
 
 # Create VGC10 Python module
 pybind11_add_module(VGC10
-  src/OnRobotGripperBase.cpp
-  src/VGC10.cpp
+  $<TARGET_OBJECTS:onrobot_gripper_base_objects>
+  $<TARGET_OBJECTS:onrobot_vgc10_objects>
   src/VGC10_binding.cpp
 )
 target_include_directories(VGC10
@@ -293,10 +312,10 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_onrobot_registers_mock
     test/test_onrobot_registers_mock.cpp
-    src/OnRobotGripperBase.cpp
-    src/TwoFG.cpp
-    src/ThreeFG.cpp
-    src/VGC10.cpp
+    $<TARGET_OBJECTS:onrobot_gripper_base_objects>
+    $<TARGET_OBJECTS:onrobot_twofg_objects>
+    $<TARGET_OBJECTS:onrobot_threefg_objects>
+    $<TARGET_OBJECTS:onrobot_vgc10_objects>
   )
   target_link_libraries(test_onrobot_registers_mock
     Modbus
