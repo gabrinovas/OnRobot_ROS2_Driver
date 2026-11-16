@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+
+  <!-- One <param> per name, with its value. -->
+  <xacro:macro name="onrobot_hardware_parameters" params="values names">
+    <xacro:if value="${len(names) > 0}">
+      <param name="${names[0]}">${values[names[0]]}</param>
+      <xacro:onrobot_hardware_parameters values="${values}" names="${names[1:]}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- One <command_interface> or <state_interface> (tag) per name. -->
+  <xacro:macro name="onrobot_joint_interfaces" params="tag names">
+    <xacro:if value="${len(names) > 0}">
+      <xacro:element xacro:name="${tag}" name="${names[0]}"/>
+      <xacro:onrobot_joint_interfaces tag="${tag}" names="${names[1:]}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- One <joint> per name, each with the interfaces of the gripper. -->
+  <xacro:macro name="onrobot_hardware_joints" params="prefix names hardware">
+    <xacro:if value="${len(names) > 0}">
+      <joint name="${prefix}${names[0]}">
+        <xacro:onrobot_joint_interfaces tag="command_interface" names="${hardware['command_interfaces']}"/>
+        <xacro:onrobot_joint_interfaces tag="state_interface" names="${hardware['state_interfaces']}"/>
+      </joint>
+      <xacro:onrobot_hardware_joints prefix="${prefix}" names="${names[1:]}" hardware="${hardware}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- ros2_control hardware of one OnRobot gripper. Everything the plugin needs is written here as <param>:
+       the connection given by the caller, and the values of config/driver.yaml and of
+       config/grippers/<onrobot_type>.yaml. A new gripper needs its two files and no change here.
+       use_mock_hardware replaces the driver by the generic mock of ros2_control (no OnRobot code runs);
+       use_fake_hardware keeps the driver and makes it simulate the gripper. -->
+  <xacro:macro name="onrobot_ros2_control"
+    params="onrobot_type prefix use_fake_hardware use_mock_hardware connection_type device ip_address port device_address">
+    <xacro:property name="driver" value="${xacro.load_yaml('$(find onrobot_driver)/config/driver.yaml')}"/>
+    <xacro:property name="hardware"
+      value="${xacro.load_yaml('$(find onrobot_driver)/config/grippers/' + onrobot_type + '.yaml')['hardware']}"/>
+    <xacro:property name="gripper"
+      value="${xacro.load_yaml('$(find onrobot_description)/config/grippers/' + onrobot_type + '.yaml')}"/>
+    <xacro:property name="joints" value="${list(gripper['joints'].keys())}"/>
+
+    <ros2_control name="OnRobotGripper" type="actuator">
+      <hardware>
+        <xacro:if value="${use_mock_hardware}">
+          <plugin>mock_components/GenericSystem</plugin>
+        </xacro:if>
+        <xacro:unless value="${use_mock_hardware}">
+          <plugin>${hardware['plugin']}</plugin>
+          <param name="onrobot_type">${onrobot_type}</param>
+          <param name="connection_type">${connection_type}</param>
+          <param name="device">${device}</param>
+          <xacro:unless value="${ip_address == ''}">   <!-- only a real gripper over tcp needs it -->
+            <param name="ip_address">${ip_address}</param>
+          </xacro:unless>
+          <param name="port">${port}</param>
+          <param name="device_address">${device_address}</param>
+          <param name="timeout_ms">${driver['connection']['timeout_ms']}</param>
+          <param name="use_fake_hardware">${use_fake_hardware}</param>
+          <param name="serial_timeout_ms">${driver['connection']['serial_timeout_ms']}</param>
+          <param name="connect_retry_ms">${driver['connection']['connect_retry_ms']}</param>
+          <xacro:if value="${gripper['kind'] == 'finger'}">
+            <param name="min_width">${gripper['joints'][joints[0]]['lower']}</param>
+            <param name="max_width">${gripper['joints'][joints[0]]['upper']}</param>
+          </xacro:if>
+          <xacro:onrobot_hardware_parameters values="${hardware['parameters']}"
+            names="${list(hardware['parameters'].keys())}"/>
+        </xacro:unless>
+      </hardware>
+      <xacro:onrobot_hardware_joints prefix="${prefix}" names="${joints}" hardware="${hardware}"/>
+    </ros2_control>
+  </xacro:macro>
+
+</robot>

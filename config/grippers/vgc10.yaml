@@ -1,0 +1,29 @@
+# OnRobot VGC10: how onrobot_driver runs it. What the gripper is (joints, range) is in
+# onrobot_description/config/grippers/vgc10.yaml; both files have the name of the gripper.
+
+hardware:
+  plugin: onrobot_driver::VGC10HardwareInterface
+  command_interfaces: [position]
+  state_interfaces: [position, velocity, effort, vacuum_level, pressure_kpa]
+  # Written as <param> into the <ros2_control> block of the URDF. The plugin requires every one of them.
+  parameters:
+    max_vacuum_percent: 80           # highest vacuum asked for (limit of the device)
+    max_current_ma: 1000             # highest pump current limit accepted (limit of the device)
+    initial_current_ma: 500          # pump current limit written when the connection opens
+    grip_threshold: 0.05             # a vacuum command above this grips; at or below it, releases
+    resend_threshold: 0.02           # a vacuum command this close to the last one sent is not sent again
+    initial_effort: 60.0             # %, vacuum asked for until a controller commands an effort
+    worker_period_ms: 20             # period of the thread that talks to the gripper
+    reconnect_wait_ms: 200           # wait before reopening the connection after a bus error
+    nominal_read_period_s: 0.02      # period assumed when the controller manager reports none
+    error_warning_period_ms: 2000    # at most one bus error warning in this time
+    fake_smoothing: 0.15             # simulated gripper: share of the remaining vacuum reached per cycle
+
+python:                          # protocol class offered to Python by this package
+  module: VGC10
+  class: VGC10
+
+controllers:
+  file: config/controllers/vgc10_controllers.yaml   # relative to this package
+  action: [gripper_channel_a_controller, gripper_channel_b_controller]   # use_gripper_action_controller true
+  position: [vacuum_group_controller]                                    # use_gripper_action_controller false

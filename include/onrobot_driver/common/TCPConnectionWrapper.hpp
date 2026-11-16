@@ -1,42 +1,51 @@
-#pragma once
-#include "IModbusConnection.hpp"
-#include "MB/TCP/connection.hpp"
+// Copyright 2026 Tony Le, Gabriel Novas
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+
+#ifndef ONROBOT_DRIVER__COMMON__TCPCONNECTIONWRAPPER_HPP_
+#define ONROBOT_DRIVER__COMMON__TCPCONNECTIONWRAPPER_HPP_
+
 #include <poll.h>
+
 #include <string>
 
-class TCPConnectionWrapper : public IModbusConnection {
+#include "MB/TCP/connection.hpp"
+#include "onrobot_driver/common/IModbusConnection.hpp"
+
+/// Modbus TCP connection with a response timeout chosen by the caller. The bundled Modbus library
+/// waits 500 ms for a response and offers no setter. OnRobot Compute Boxes may need more than 800
+/// ms to answer the first requests after being idle, so the response is awaited here.
+class TCPConnectionWrapper : public IModbusConnection
+{
 public:
-    // The bundled Modbus library hard-codes a 500 ms response timeout (MB::TCP::Connection::DefaultTCPTimeout)
-    // and exposes no setter. OnRobot Compute Boxes may need >800 ms to answer the first requests after
-    // being idle, so we wait for the response ourselves with a configurable (longer) timeout.
-    static constexpr int DefaultTimeoutMs = 2000;
+  TCPConnectionWrapper(const std::string & ip, int port, int timeout_ms)
+  : connection_(MB::TCP::Connection::with(ip, port)), timeout_ms_(timeout_ms) {}
 
-    TCPConnectionWrapper(const std::string &ip, int port, int timeout_ms = DefaultTimeoutMs)
-      : connection(MB::TCP::Connection::with(ip, port)),
-        timeout_ms_(timeout_ms > 0 ? timeout_ms : DefaultTimeoutMs) {}
+  MB::ModbusResponse sendRequest(const MB::ModbusRequest & req) override
+  {
+    connection_.sendRequest(req);
 
-    MB::ModbusResponse sendRequest(const MB::ModbusRequest &req) override {
-        connection.sendRequest(req);
-
-        // Wait for the response with our own timeout. Once data is readable, awaitResponse()'s
-        // internal 500 ms poll returns immediately. On timeout the caller must drop this connection
-        // (a late reply would otherwise be read as the answer to the next request).
-        pollfd pfd{};
-        pfd.fd = connection.getSockfd();
-        pfd.events = POLLIN;
-        if (::poll(&pfd, 1, timeout_ms_) <= 0) {
-            throw MB::ModbusException(MB::utils::Timeout);
-        }
-        return connection.awaitResponse();
+    // Once data is readable, the 500 ms poll inside awaitResponse() returns at once. On timeout the
+    // caller must drop this connection: a late reply would otherwise be read as the answer to the
+    // next request.
+    pollfd descriptor{};
+    descriptor.fd = connection_.getSockfd();
+    descriptor.events = POLLIN;
+    if (::poll(&descriptor, 1, timeout_ms_) <= 0) {
+      throw MB::ModbusException(MB::utils::Timeout);
     }
+    return connection_.awaitResponse();
+  }
 
-    void close() override {
-        // Connection cleanup if needed
-    }
+  void close() override {}
 
-    int timeoutMs() const { return timeout_ms_; }
+  int timeoutMs() const {return timeout_ms_;}
 
 private:
-    MB::TCP::Connection connection;
-    int timeout_ms_;
+  MB::TCP::Connection connection_;
+  int timeout_ms_;
 };
+
+#endif  // ONROBOT_DRIVER__COMMON__TCPCONNECTIONWRAPPER_HPP_

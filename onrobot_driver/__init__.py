@@ -1,26 +1,17 @@
-"""OnRobot Driver Python package."""
-try:
-    from .TwoFG import TwoFG
-except ImportError:
-    try:
-        from TwoFG import TwoFG
-    except ImportError:
-        TwoFG = None
+# Copyright 2026 Tony Le, Gabriel Novas
+#
+# Use of this source code is governed by an MIT-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/MIT.
 
-try:
-    from .ThreeFG import ThreeFG
-except ImportError:
-    try:
-        from ThreeFG import ThreeFG
-    except ImportError:
-        ThreeFG = None
+"""
+Python side of the OnRobot driver.
 
-try:
-    from .VGC10 import VGC10
-except ImportError:
-    try:
-        from VGC10 import VGC10
-    except ImportError:
-        VGC10 = None
+create_gripper() builds the protocol object of a gripper from the configuration files and opens
+its connection; the classes themselves are the modules TwoFG, ThreeFG and VGC10 of this package.
+"""
 
-__all__ = ["TwoFG", "ThreeFG", "VGC10"]
+from onrobot_driver.factory import create_gripper, driver_config, gripper_joints
+from onrobot_driver.factory import load_driver_gripper
+
+__all__ = ['create_gripper', 'driver_config', 'gripper_joints', 'load_driver_gripper']

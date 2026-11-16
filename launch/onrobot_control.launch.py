@@ -1,270 +1,96 @@
 #!/usr/bin/env python3
+# Copyright 2026 Tony Le, Gabriel Novas
+#
+# Use of this source code is governed by an MIT-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/MIT.
+
+"""Run one OnRobot gripper on its own: controller manager, controllers, monitor and RViz."""
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import OpaqueFunction
 from launch.conditions import IfCondition
-from launch.substitutions import (
-    Command,
-    FindExecutable,
-    LaunchConfiguration,
-    PathJoinSubstitution,
-)
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
-from launch_ros.substitutions import FindPackageShare
+from onrobot_description.config_loader import ConfigError, package_file, require
+from onrobot_description.grippers import gripper_names, load_gripper
+from onrobot_description.launch_arguments import as_launch_text, declare_arguments
+from onrobot_driver import driver_config, gripper_joints, load_driver_gripper
+
+PACKAGE = 'onrobot_driver'
+# Launch arguments handed to the hardware description as they are.
+DESCRIPTION_ARGUMENTS = ('onrobot_type', 'connection_type', 'device', 'ip_address', 'port',
+                         'device_address', 'prefix', 'use_fake_hardware')
 
 
 def launch_setup(context, *args, **kwargs):
-    # Retrieve configuration values resolved dynamically from context
-    onrobot_type_val = context.perform_substitution(LaunchConfiguration('onrobot_type'))
-    connection_type_val = context.perform_substitution(LaunchConfiguration('connection_type'))
-    device_val = context.perform_substitution(LaunchConfiguration('device'))
-    ip_address_val = context.perform_substitution(LaunchConfiguration('ip_address'))
-    port_val = context.perform_substitution(LaunchConfiguration('port'))
-    device_address_val = context.perform_substitution(LaunchConfiguration('device_address'))
-    prefix_val = context.perform_substitution(LaunchConfiguration('prefix'))
-    ns_val = context.perform_substitution(LaunchConfiguration('ns'))
-    use_fake_hardware_val = context.perform_substitution(LaunchConfiguration('use_fake_hardware'))
-    use_gripper_action_controller_val = (
-        context.perform_substitution(LaunchConfiguration('use_gripper_action_controller')).lower() == 'true'
-    )
-    launch_rviz = LaunchConfiguration('launch_rviz')
-    launch_rsp = LaunchConfiguration('launch_rsp')
+    config = driver_config()
+    values = {name: LaunchConfiguration(name).perform(context)
+              for name in require(config, 'launch_arguments')}
+    gripper = load_driver_gripper(values['onrobot_type'])
+    namespace = values['ns']
+    if not values['port'].isdigit():
+        port = values['port']
+        raise ConfigError(f"[Fail-Fast] Launch argument 'port' is not a number: '{port}'")
+    simulated = values['use_fake_hardware'].lower() == 'true'
+    if values['connection_type'] == 'tcp' and not simulated and not values['ip_address']:
+        raise ConfigError(
+            "[Fail-Fast] Launch argument 'ip_address' (the address of the Compute Box) is "
+            'required with connection_type:=tcp and the real gripper')
 
-    # Path to the xacro file in the onrobot_description package
-    xacro_file = PathJoinSubstitution([
-        FindPackageShare('onrobot_description'),
-        'urdf',
-        'onrobot.urdf.xacro'
-    ])
+    description_command = [FindExecutable(name='xacro'), ' ',
+                           package_file(PACKAGE, require(config, 'launch', 'description_file'))]
+    for name in DESCRIPTION_ARGUMENTS:
+        if values[name] or name == 'prefix':  # xacro takes an empty value as a missing argument
+            description_command += [f' {name}:=', values[name]]
+    mock = as_launch_text(require(config, 'launch', 'use_mock_hardware'))
+    description_command += [' use_mock_hardware:=', mock]
+    robot_description = {
+        'robot_description': ParameterValue(Command(description_command), value_type=str)}
 
-    # Process the xacro to generate the robot description (URDF)
-    robot_description_content = Command([
-        PathJoinSubstitution([FindExecutable(name='xacro')]),
-        ' ',
-        xacro_file,
-        ' ',
-        'onrobot_type:=', onrobot_type_val,
-        ' ',
-        'connection_type:=', connection_type_val,
-        ' ',
-        'device:=', device_val,
-        ' ',
-        'ip_address:=', ip_address_val,
-        ' ',
-        'port:=', port_val,
-        ' ',
-        'device_address:=', device_address_val,
-        ' ',
-        'prefix:=', prefix_val,
-        ' ',
-        'use_fake_hardware:=', use_fake_hardware_val,
-        ' ',
-        'name:=onrobot'
-    ])
+    controllers = ParameterFile(
+        package_file(PACKAGE, require(gripper, 'controllers', 'file')), allow_substs=True)
+    action_controllers = values['use_gripper_action_controller'].lower() == 'true'
+    spawned = [require(config, 'launch', 'joint_state_broadcaster')]
+    spawned += require(gripper, 'controllers', 'action' if action_controllers else 'position')
 
-    # Use ParameterValue to properly handle the robot description string
-    robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
+    monitor_parameters = {
+        'onrobot_type': values['onrobot_type'],
+        'gripper_kind': require(load_gripper(values['onrobot_type']), 'kind'),
+        'joints': gripper_joints(values['onrobot_type'], values['prefix']),
+        'connection_type': values['connection_type'],
+        'ip_address': values['ip_address'],
+        'port': int(values['port']),
+        'device': values['device'],
+        'timeout_ms': require(config, 'connection', 'timeout_ms'),
+        'serial_timeout_ms': require(config, 'connection', 'serial_timeout_ms'),
+        'compute_box_address': require(config, 'compute_box_address'),
+        'use_fake_hardware': values['use_fake_hardware'].lower() == 'true',
+    }
+    rviz_package, rviz_file = require(config, 'launch', 'rviz_config')
 
-    # Determine which controller config and hardware interface to use based on resolved gripper type
-    if onrobot_type_val == '2fg7':
-        controller_config_filename = 'twofg_controllers.yaml'
-        hw_interface_plugin = 'onrobot_driver::TwoFGHardwareInterface'
-    elif onrobot_type_val == '3fg15':
-        controller_config_filename = 'threefg_controllers.yaml'
-        hw_interface_plugin = 'onrobot_driver::ThreeFGHardwareInterface'
-    elif onrobot_type_val == 'vgc10':
-        controller_config_filename = 'vgc10_controllers.yaml'
-        hw_interface_plugin = 'onrobot_driver::VGC10HardwareInterface'
-    else:
-        raise RuntimeError(f"Unsupported onrobot_type: '{onrobot_type_val}'. Supported types are: '2fg7', '3fg15', 'vgc10'")
-
-    controller_config_file = PathJoinSubstitution([
-        FindPackageShare('onrobot_driver'),
-        'config',
-        controller_config_filename
-    ])
-    controller_config = ParameterFile(controller_config_file, allow_substs=True)
-
-    # Add hardware interface parameter to robot description
-    robot_description_with_hw = robot_description.copy()
-    robot_description_with_hw['hardware_interface_plugin'] = hw_interface_plugin
-
-    # Launch the ros2_control node
-    ros2_control_node = Node(
-        namespace=ns_val,
-        package='controller_manager',
-        executable='ros2_control_node',
-        parameters=[robot_description_with_hw, controller_config],
-        output='screen'
-    )
-
-    # Launch the robot state publisher
-    robot_state_publisher_node = Node(
-        namespace=ns_val,
-        package='robot_state_publisher',
-        condition=IfCondition(launch_rsp),
-        executable='robot_state_publisher',
-        parameters=[robot_description],
-        output='both'
-    )
-
-    # Spawn the joint state broadcaster
-    joint_state_spawner = Node(
-        namespace=ns_val,
-        package='controller_manager',
-        executable='spawner',
-        arguments=['joint_state_broadcaster'],
-        output='screen'
-    )
-
-    # Spawn the gripper controllers
-    gripper_spawners = []
-    if onrobot_type_val == 'vgc10':
-        if use_gripper_action_controller_val:
-            gripper_spawners.append(Node(
-                namespace=ns_val,
-                package='controller_manager',
-                executable='spawner',
-                arguments=['gripper_channel_a_controller'],
-                output='screen'
-            ))
-            gripper_spawners.append(Node(
-                namespace=ns_val,
-                package='controller_manager',
-                executable='spawner',
-                arguments=['gripper_channel_b_controller'],
-                output='screen'
-            ))
-        else:
-            gripper_spawners.append(Node(
-                namespace=ns_val,
-                package='controller_manager',
-                executable='spawner',
-                arguments=['vacuum_group_controller'],
-                output='screen'
-            ))
-    else:
-        controller_to_spawn = 'gripper_action_controller' if use_gripper_action_controller_val else 'finger_width_controller'
-        gripper_spawners.append(Node(
-            namespace=ns_val,
-            package='controller_manager',
-            executable='spawner',
-            arguments=[controller_to_spawn],
-            output='screen'
-        ))
-
-    # Launch RViz for visualization using the config from onrobot_description
-    rviz_config_file = PathJoinSubstitution([
-        FindPackageShare('onrobot_description'),
-        'rviz',
-        'view_onrobot.rviz'
-    ])
-    rviz_node = Node(
-        namespace=ns_val,
-        package='rviz2',
-        condition=IfCondition(launch_rviz),
-        executable='rviz2',
-        name='rviz2',
-        output='screen',
-        arguments=['-d', rviz_config_file],
-    )
-
-    # Status monitor node
-    gripper_status_node = Node(
-        namespace=ns_val,
-        package='onrobot_driver',
-        executable='gripper_status_monitor',
-        name='gripper_status_monitor',
-        output='screen',
-        parameters=[{
-            'onrobot_type': onrobot_type_val,
-            'connection_type': connection_type_val,
-            'ip_address': ip_address_val,
-            'port': int(port_val) if port_val.isdigit() else 502,
-            'device': device_val,
-            'use_fake_hardware': use_fake_hardware_val.lower() == 'true',
-        }]
-    )
+    def node(package, executable, **options):
+        return Node(namespace=namespace, package=package, executable=executable, **options)
 
     return [
-        ros2_control_node,
-        robot_state_publisher_node,
-        joint_state_spawner,
-        *gripper_spawners,
-        gripper_status_node,
-        rviz_node,
+        node('controller_manager', 'ros2_control_node', output='screen',
+             parameters=[robot_description, controllers]),
+        node('robot_state_publisher', 'robot_state_publisher', output='both',
+             parameters=[robot_description],
+             condition=IfCondition(LaunchConfiguration('launch_rsp'))),
+        *[node('controller_manager', 'spawner', arguments=[controller], output='screen')
+          for controller in spawned],
+        node(PACKAGE, 'gripper_status_monitor', name='gripper_status_monitor', output='screen',
+             parameters=[package_file(PACKAGE, require(config, 'launch', 'monitor_config')),
+                         monitor_parameters]),
+        node('rviz2', 'rviz2', name='rviz2', output='screen',
+             arguments=['-d', package_file(rviz_package, rviz_file)],
+             condition=IfCondition(LaunchConfiguration('launch_rviz'))),
     ]
 
 
 def generate_launch_description():
-    declared_arguments = [
-        DeclareLaunchArgument(
-            'onrobot_type',
-            default_value='2fg7',
-            description='Type of OnRobot gripper.',
-            choices=['2fg7', '3fg15', 'vgc10'],
-        ),
-        DeclareLaunchArgument(
-            'connection_type',
-            default_value='tcp',
-            description='Connection type for the OnRobot gripper. TCP for Compute Box. Serial for UR Tool I/O (RS485).',
-            choices=['serial', 'tcp'],
-        ),
-        DeclareLaunchArgument(
-            'device',
-            default_value='/tmp/ttyUR',
-            description='Device name for the serial connection (e.g. /tmp/ttyUR or /dev/ttyUSB0). Only used when connection_type is serial.',
-        ),
-        DeclareLaunchArgument(
-            'ip_address',
-            default_value='192.168.1.1',
-            description='IP address for the TCP connection. Only used when connection_type is tcp.',
-        ),
-        DeclareLaunchArgument(
-            'port',
-            default_value='502',
-            description='Port for the TCP connection. Only used when connection_type is tcp.',
-        ),
-        DeclareLaunchArgument(
-            'device_address',
-            default_value='65',
-            description='Modbus device address for the gripper. Default is 65 (0x41) for single gripper setups.',
-        ),
-        DeclareLaunchArgument(
-            'prefix',
-            default_value='',
-            description='Prefix for joint names (useful for multi-robot setups).',
-        ),
-        DeclareLaunchArgument(
-            'ns',
-            default_value='onrobot',
-            description='Namespace for the nodes. Useful for separate gripper and robot control setups.',
-        ),
-        DeclareLaunchArgument(
-            'launch_rviz',
-            default_value='true',
-            description='Launch RViz for visualization.',
-        ),
-        DeclareLaunchArgument(
-            'launch_rsp',
-            default_value='true',
-            description='Launch robot state publisher.',
-        ),
-        DeclareLaunchArgument(
-            'use_fake_hardware',
-            default_value='false',
-            description='Use fake hardware interface for testing.',
-        ),
-        DeclareLaunchArgument(
-            'use_gripper_action_controller',
-            default_value='true',
-            description='Spawn standard GripperActionController (MoveIt 2 compatible) instead of JointGroupPositionController.',
-            choices=['true', 'false'],
-        ),
-    ]
-
-    return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
-
-
-if __name__ == '__main__':
-    generate_launch_description()
+    arguments = declare_arguments(
+        driver_config(), 'launch_arguments', choices={'onrobot_type': gripper_names()})
+    return LaunchDescription(arguments + [OpaqueFunction(function=launch_setup)])

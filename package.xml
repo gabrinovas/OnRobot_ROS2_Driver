@@ -3,16 +3,17 @@
 <package format="3">
   <name>onrobot_driver</name>
   <version>0.0.1</version>
-  <description>ROS2 driver for OnRobot grippers (2FG7 and 3FG15)</description>
+  <description>ROS 2 driver for OnRobot grippers (2FG7, 3FG15 and VGC10)</description>
   <maintainer email="tonyle98@outlook.com">Tony Le</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_index_cpp</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <depend>control_msgs</depend>
   <depend>controller_manager</depend>
@@ -28,7 +29,7 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>onrobot_description</depend>
-  <depend>pybind11</depend>
+  <depend>pybind11-dev</depend>
   <exec_depend>gripper_controllers</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>
   <exec_depend>joint_state_publisher</exec_depend>
@@ -39,10 +40,10 @@
   <exec_depend>rviz2</exec_depend>
   <exec_depend>urdf</exec_depend>
   <exec_depend>xacro</exec_depend>
-  
-  <build_depend>python3-devel</build_depend>
+
+  <build_depend>python3-dev</build_depend>
   <exec_depend>python3</exec_depend>
-  
+
   <export>
     <build_type>ament_cmake</build_type>
     <hardware_interface plugin="${prefix}/twofg_hardware_interface.xml"/>
