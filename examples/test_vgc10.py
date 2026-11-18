@@ -1,139 +1,114 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# Copyright 2026 Tony Le, Gabriel Novas
+#
+# Use of this source code is governed by an MIT-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/MIT.
+
 """
-test_vgc10.py - Script de prueba interactivo / demostración para OnRobot VGC10
+Example: the two vacuum channels of the VGC10, one after the other.
 
-Prueba el control de doble canal independiente (Canal A y Canal B) vía Python (Modbus TCP)
-o mediante el envío de acciones de ROS 2.
-
-Ejecutar dentro del contenedor Docker generado por Dockerfile.aimen:
-    python3 examples/test_vgc10.py --ip 192.168.1.1 --mode python
-o
-    python3 examples/test_vgc10.py --mode ros2
+  python3 test_vgc10.py --mode python [--ip-address A] [--port P] [--device-address D]
+      talks to the gripper directly (Modbus), without ROS.
+  python3 test_vgc10.py --mode ros2
+      sends GripperCommand goals to the running driver
+      (onrobot_control.launch.py onrobot_type:=vgc10).
 """
 
 import argparse
 import time
-import sys
 
-def test_direct_python(ip: str, port: int, device_address: int):
-    print(f"\n[VGC10 Python Test] Conectando a Compute Box en {ip}:{port} (Addr: {device_address})...")
-    try:
-        from onrobot_driver import VGC10
-    except ImportError:
-        try:
-            import VGC10
-        except ImportError:
-            print("❌ Error: No se pudo importar el módulo VGC10. Asegúrate de compilar y hacer source install/setup.bash")
-            sys.exit(1)
+from arm_trajectory import examples_config
+from onrobot_description.config_loader import require
 
-    try:
-        gripper = VGC10("vgc10", ip, port, device_address)
-        print("✅ Conexión establecida con el VGC10.")
-    except Exception as e:
-        print(f"❌ Error al conectar con el VGC10: {e}")
-        return
+
+def run_direct(values, overrides):
+    """Drive the gripper through its Python class."""
+    import onrobot_driver
+
+    gripper = onrobot_driver.create_gripper(require(values, 'onrobot_type'), **overrides)
+    wait = require(values, 'step_wait_s')
+
+    def report():
+        _, vacuum_a, vacuum_b = gripper.read_both_vacuums()
+        print(f'Vacuum: channel A {vacuum_a * 100:.1f} %, channel B {vacuum_b * 100:.1f} % '
+              f'(last request {gripper.get_last_roundtrip_ms():.1f} ms)')
 
     try:
-        print("\n--- 1. Lectura inicial de telemetría (Single Modbus Transaction) ---")
-        ok, vac_a, vac_b = gripper.read_both_vacuums()
-        print(f"Vacío Canal A: {vac_a * 100:.1f} % | Vacío Canal B: {vac_b * 100:.1f} %")
-        print(f"Estado de conexión: {'Conectado' if gripper.is_connected() else 'Desconectado'} | Latencia: {gripper.get_last_roundtrip_ms():.2f} ms | Peticiones: {gripper.get_total_requests()}")
-
-        print("\n--- 2. Succión en Canal A (60% vacío) manteniendo Canal B liberado ---")
-        gripper.grip_channel_a(60)
-        time.sleep(2.0)
-        print(f"Vacío Canal A: {gripper.get_vacuum_channel_a() * 100:.1f} %")
-        print(f"Vacío Canal B: {gripper.get_vacuum_channel_b() * 100:.1f} %")
-
-        print("\n--- 3. Succión en Canal B (70% vacío) manteniendo Canal A aspirando ---")
-        gripper.grip_channel_b(70)
-        time.sleep(2.0)
-        print(f"Vacío Canal A: {gripper.get_vacuum_channel_a() * 100:.1f} %")
-        print(f"Vacío Canal B: {gripper.get_vacuum_channel_b() * 100:.1f} %")
-
-        print("\n--- 4. Liberar Canal A (manteniendo Canal B con vacío) ---")
+        report()
+        print('Channel A grips')
+        gripper.grip_channel_a(require(values, 'vacuum_a_percent'))
+        time.sleep(wait)
+        report()
+        print('Channel B grips, channel A keeps its vacuum')
+        gripper.grip_channel_b(require(values, 'vacuum_b_percent'))
+        time.sleep(wait)
+        report()
+        print('Channel A releases, channel B keeps its vacuum')
         gripper.release_channel_a()
-        time.sleep(2.0)
-        print(f"Vacío Canal A: {gripper.get_vacuum_channel_a() * 100:.1f} %")
-        print(f"Vacío Canal B: {gripper.get_vacuum_channel_b() * 100:.1f} %")
-
-        print("\n--- 5. Liberar ambos canales ---")
-        gripper.release_all()
-        time.sleep(1.0)
-        print("✅ Test completado con éxito.")
-
-    except KeyboardInterrupt:
-        print("\nInterrupción detectada. Liberando canales de vacío...")
-        gripper.release_all()
-    except Exception as e:
-        print(f"❌ Error durante la ejecución del test: {e}")
+        time.sleep(wait)
+        report()
+    finally:
+        print('Both channels release')
         gripper.release_all()
 
-def test_ros2_actions():
-    import rclpy
-    from rclpy.node import Node
-    from rclpy.action import ActionClient
+
+def run_actions(values):
+    """Drive the gripper through the action controllers of the running driver."""
     from control_msgs.action import GripperCommand
+    import rclpy
+    from rclpy.action import ActionClient
 
-    print("\n[VGC10 ROS 2 Test] Enviando comandos a través de GripperActionController...")
     rclpy.init()
-    node = Node("test_vgc10_ros2_client")
+    node = rclpy.create_node('vgc10_example')
+    clients = {channel: ActionClient(node, GripperCommand, require(values, f'action_{channel}'))
+               for channel in ('a', 'b')}
+    try:
+        for client in clients.values():
+            if not client.wait_for_server(timeout_sec=require(values, 'action_wait_s')):
+                raise RuntimeError('The action servers of the vacuum channels are not available')
 
-    client_a = ActionClient(node, GripperCommand, "/onrobot/gripper_channel_a_controller/gripper_cmd")
-    client_b = ActionClient(node, GripperCommand, "/onrobot/gripper_channel_b_controller/gripper_cmd")
+        def send(channel, position, effort):
+            goal = GripperCommand.Goal()
+            goal.command.position = float(position)
+            goal.command.max_effort = float(effort)
+            sent = clients[channel].send_goal_async(goal)
+            rclpy.spin_until_future_complete(node, sent)
+            if not sent.result().accepted:
+                raise RuntimeError(f'Channel {channel}: goal rejected')
+            rclpy.spin_until_future_complete(node, sent.result().get_result_async())
+            time.sleep(require(values, 'step_wait_s'))
 
-    print("Esperando servidores de acción...")
-    if not client_a.wait_for_server(timeout_sec=5.0) or not client_b.wait_for_server(timeout_sec=5.0):
-        print("❌ No se encontraron los servidores de acción. Asegúrate de haber lanzado onrobot_control.launch.py con onrobot_type:=vgc10")
+        print('Channel A grips')
+        send('a', 1.0, require(values, 'vacuum_a_percent'))
+        print('Channel B grips')
+        send('b', 1.0, require(values, 'vacuum_b_percent'))
+        print('Channel A releases')
+        send('a', 0.0, 0.0)
+        print('Channel B releases')
+        send('b', 0.0, 0.0)
+    finally:
+        node.destroy_node()
         rclpy.shutdown()
-        return
 
-    def send_cmd(client, position: float, max_effort: float):
-        goal = GripperCommand.Goal()
-        goal.command.position = position
-        goal.command.max_effort = max_effort
-        future = client.send_goal_async(goal)
-        rclpy.spin_until_future_complete(node, future)
-        handle = future.result()
-        if not handle.accepted:
-            print("Comando rechazado")
-            return
-        res_future = handle.get_result_async()
-        rclpy.spin_until_future_complete(node, res_future)
-
-    print("\n-> Aspirando con Canal A (vacío al 60%)...")
-    send_cmd(client_a, position=1.0, max_effort=60.0)
-    time.sleep(2.0)
-
-    print("-> Aspirando con Canal B (vacío al 70%)...")
-    send_cmd(client_b, position=1.0, max_effort=70.0)
-    time.sleep(2.0)
-
-    print("-> Soltando Canal A...")
-    send_cmd(client_a, position=0.0, max_effort=0.0)
-    time.sleep(2.0)
-
-    print("-> Soltando Canal B...")
-    send_cmd(client_b, position=0.0, max_effort=0.0)
-    print("✅ Prueba ROS 2 finalizada.")
-
-    node.destroy_node()
-    rclpy.shutdown()
 
 def main():
-    parser = argparse.ArgumentParser(description="Prueba del gripper OnRobot VGC10")
-    parser.add_argument("--mode", choices=["python", "ros2"], default="python",
-                        help="Modo de prueba: python (conexión directa Modbus TCP) o ros2 (Action Servers)")
-    parser.add_argument("--ip", default="192.168.1.1", help="IP del Compute Box OnRobot")
-    parser.add_argument("--port", type=int, default=502, help="Puerto Modbus TCP (por defecto 502)")
-    parser.add_argument("--device-address", type=int, default=65, help="Dirección Modbus de la herramienta (por defecto 65)")
+    parser = argparse.ArgumentParser(description='OnRobot VGC10 example')
+    parser.add_argument('--mode', choices=['python', 'ros2'], required=True)
+    for name in ('ip-address', 'port', 'device-address'):
+        parser.add_argument(f'--{name}', help='override of config/driver.yaml (mode python)')
+    arguments = parser.parse_args()
 
-    args = parser.parse_args()
-    if args.mode == "python":
-        test_direct_python(args.ip, args.port, args.device_address)
+    config = examples_config()
+    values = require(config, 'vacuum_gripper')
+    values['__file__'] = config['__file__']
+    if arguments.mode == 'python':
+        given = {'ip_address': arguments.ip_address, 'port': arguments.port,
+                 'device_address': arguments.device_address}
+        run_direct(values, {name: value for name, value in given.items() if value is not None})
     else:
-        test_ros2_actions()
+        run_actions(values)
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()

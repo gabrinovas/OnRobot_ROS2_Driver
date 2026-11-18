@@ -1,10 +1,17 @@
-cmake_minimum_required(VERSION 3.5)
+# Copyright 2026 Tony Le, Gabriel Novas
+#
+# Use of this source code is governed by an MIT-style
+# license that can be found in the LICENSE file or at
+# https://opensource.org/licenses/MIT.
+
+cmake_minimum_required(VERSION 3.12)  # object libraries that link to other targets
 project(onrobot_driver)
 
-# Enable PIC for all targets
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 
-# Find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(controller_manager REQUIRED)
@@ -20,18 +27,10 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
-# Include directories
-include_directories(
-  include
-  ${CMAKE_SOURCE_DIR}/include/onrobot_driver
-  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/common
-  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/threefg
-  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/twofg
-  ${CMAKE_SOURCE_DIR}/include/onrobot_driver/vgc10
-)
+include_directories(include)
 
-# List of dependencies
-set(THIS_PACKAGE_INCLUDE_DEPENDS
+# ROS packages the hardware plugins are built against.
+set(ONROBOT_HARDWARE_DEPENDENCIES
   controller_manager
   hardware_interface
   pluginlib
@@ -41,270 +40,31 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   std_msgs
 )
 
-# Enable serial communication for the Modbus library
+# The bundled Modbus library, with its serial transport.
 set(MODBUS_SERIAL_COMMUNICATION ON CACHE BOOL "Enable Modbus Serial Communication" FORCE)
-
-# Add the Modbus library as a subdirectory
 add_subdirectory(include/onrobot_driver/Modbus)
 
-# =============================================================================
-# Build the TwoFG hardware interface as a shared library
-# =============================================================================
-add_library(onrobot_twofg_driver_plugin
-  SHARED
-  src/OnRobotGripperBase.cpp
-  src/OnRobotHardwareInterfaceBase.cpp
-  src/TwoFG.cpp
-  src/twofg_hardware_interface.cpp
-)
-target_link_libraries(onrobot_twofg_driver_plugin
-  Modbus
-  pluginlib::pluginlib
-)
-target_include_directories(onrobot_twofg_driver_plugin
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  PRIVATE
-    include
-)
-ament_target_dependencies(onrobot_twofg_driver_plugin
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
+include(cmake/onrobot_objects.cmake)
+include(cmake/onrobot_plugins.cmake)
+include(cmake/onrobot_monitor.cmake)
+include(cmake/onrobot_python.cmake)
 
-# =============================================================================
-# Build the ThreeFG hardware interface as a shared library
-# =============================================================================
-add_library(onrobot_threefg_driver_plugin
-  SHARED
-  src/OnRobotGripperBase.cpp
-  src/OnRobotHardwareInterfaceBase.cpp
-  src/ThreeFG.cpp
-  src/threefg_hardware_interface.cpp
-)
-target_link_libraries(onrobot_threefg_driver_plugin
-  Modbus
-  pluginlib::pluginlib
-)
-target_include_directories(onrobot_threefg_driver_plugin
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  PRIVATE
-    include
-)
-ament_target_dependencies(onrobot_threefg_driver_plugin
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
-
-# =============================================================================
-# Build the VGC10 hardware interface as a shared library
-# =============================================================================
-add_library(onrobot_vgc10_driver_plugin
-  SHARED
-  src/OnRobotGripperBase.cpp
-  src/VGC10.cpp
-  src/vgc10_hardware_interface.cpp
-)
-target_link_libraries(onrobot_vgc10_driver_plugin
-  Modbus
-  pluginlib::pluginlib
-)
-target_include_directories(onrobot_vgc10_driver_plugin
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  PRIVATE
-    include
-)
-ament_target_dependencies(onrobot_vgc10_driver_plugin
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
-
-# =============================================================================
-# Build the gripper status monitor node
-# =============================================================================
-add_executable(gripper_status_monitor
-  src/gripper_status_monitor.cpp
-)
-target_link_libraries(gripper_status_monitor
-  Modbus
-)
-ament_target_dependencies(gripper_status_monitor
-  diagnostic_msgs
-  diagnostic_updater
-  rclcpp
-  sensor_msgs
-  std_msgs
-  std_srvs
-)
-
-# =============================================================================
-# PYBIND11: Python bindings for grippers
-# =============================================================================
-find_package(pybind11 REQUIRED)
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
-
-# DEBUG: Print versions
-message(STATUS "pybind11 found: ${pybind11_VERSION}")
-message(STATUS "Python3 found: ${Python3_VERSION}")
-message(STATUS "Python3 interpreter: ${Python3_EXECUTABLE}")
-
-# Create TwoFG Python module
-pybind11_add_module(TwoFG
-  src/OnRobotGripperBase.cpp
-  src/TwoFG.cpp
-  src/TwoFG_binding.cpp
-)
-target_include_directories(TwoFG
-  PRIVATE
-    include
-    ${CMAKE_SOURCE_DIR}/include
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_link_libraries(TwoFG
-  PRIVATE
-    Modbus
-)
-
-# Create ThreeFG Python module
-pybind11_add_module(ThreeFG
-  src/OnRobotGripperBase.cpp
-  src/ThreeFG.cpp
-  src/ThreeFG_binding.cpp
-)
-target_include_directories(ThreeFG
-  PRIVATE
-    include
-    ${CMAKE_SOURCE_DIR}/include
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_link_libraries(ThreeFG
-  PRIVATE
-    Modbus
-)
-
-# Create VGC10 Python module
-pybind11_add_module(VGC10
-  src/OnRobotGripperBase.cpp
-  src/VGC10.cpp
-  src/VGC10_binding.cpp
-)
-target_include_directories(VGC10
-  PRIVATE
-    include
-    ${CMAKE_SOURCE_DIR}/include
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-target_link_libraries(VGC10
-  PRIVATE
-    Modbus
-)
-
-# Install Python package (ament_cmake_python)
-ament_python_install_package(${PROJECT_NAME})
-
-# Install pybind11 modules to Python installation directories
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY config examples launch urdf DESTINATION share/${PROJECT_NAME})
 install(
-  TARGETS TwoFG ThreeFG VGC10
-  DESTINATION "${PYTHON_INSTALL_DIR}"
-)
-install(
-  TARGETS TwoFG ThreeFG VGC10
-  DESTINATION "${PYTHON_INSTALL_DIR}/${PROJECT_NAME}"
-)
-
-# =============================================================================
-# INSTALL
-# =============================================================================
-install(
-  TARGETS
-    onrobot_twofg_driver_plugin
-    onrobot_threefg_driver_plugin
-    onrobot_vgc10_driver_plugin
-    gripper_status_monitor
-  DESTINATION lib/${PROJECT_NAME}
-)
-
-install(
-  DIRECTORY include/
-  DESTINATION include
-)
-
-install(
-  DIRECTORY launch config examples
+  FILES twofg_hardware_interface.xml threefg_hardware_interface.xml vgc10_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(
-  FILES
-    twofg_hardware_interface.xml
-    threefg_hardware_interface.xml
-    vgc10_hardware_interface.xml
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# =============================================================================
-# EXPORTS
-# =============================================================================
 ament_export_include_directories(include)
-ament_export_libraries(
-  onrobot_twofg_driver_plugin
-  onrobot_threefg_driver_plugin
-  onrobot_vgc10_driver_plugin
-)
-ament_export_dependencies(
-  hardware_interface
-  pluginlib
-  rclcpp
-  rclcpp_lifecycle
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
-
-# =============================================================================
-# Export hardware plugins
-# =============================================================================
+ament_export_libraries(${ONROBOT_PLUGIN_TARGETS})
+ament_export_dependencies(${ONROBOT_HARDWARE_DEPENDENCIES})
 pluginlib_export_plugin_description_file(hardware_interface twofg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface threefg_hardware_interface.xml)
 pluginlib_export_plugin_description_file(hardware_interface vgc10_hardware_interface.xml)
 
-# =============================================================================
-# Testing
-# =============================================================================
 if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-
-  ament_add_gtest(test_modbus_crc_frames
-    test/test_modbus_crc_frames.cpp
-  )
-  target_link_libraries(test_modbus_crc_frames
-    Modbus
-  )
-  target_include_directories(test_modbus_crc_frames PRIVATE
-    include
-    include/onrobot_driver/Modbus/include
-  )
-
-  ament_add_gtest(test_onrobot_registers_mock
-    test/test_onrobot_registers_mock.cpp
-    src/OnRobotGripperBase.cpp
-    src/TwoFG.cpp
-    src/ThreeFG.cpp
-    src/VGC10.cpp
-  )
-  target_link_libraries(test_onrobot_registers_mock
-    Modbus
-  )
-  target_include_directories(test_onrobot_registers_mock PRIVATE
-    include
-    include/onrobot_driver/Modbus/include
-  )
+  include(cmake/onrobot_tests.cmake)
 endif()
 
 ament_package()

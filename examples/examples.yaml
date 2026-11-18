@@ -1,0 +1,44 @@
+# Values of the example scripts of this folder. They are examples of a UR5e with an OnRobot gripper: adapt the
+# poses to your own cell before running them on a real robot.
+
+arm:
+  trajectory_topic: /scaled_joint_trajectory_controller/joint_trajectory
+  joint_states_topic: /joint_states
+  joint_states_wait_s: 2.0          # how long to wait for the current joint positions
+  joints: [shoulder_pan_joint, shoulder_lift_joint, elbow_joint, wrist_1_joint, wrist_2_joint, wrist_3_joint]
+  sample_rate_hz: 125               # points per second of the trajectories sent
+  max_velocity_rad_s: 1.5           # a move that would exceed it is slowed down
+  velocity_margin: 0.9              # share of the maximum velocity actually used
+  queue_depth: 10
+  poses:                            # joint positions, rad, in the order of `joints`
+    home: [1.582956, -1.850573, 1.796592, -1.442179, -1.519554, 0.154681]
+    high: [1.582956, -2.2, 1.6, -1.442179, -1.519554, 0.154681]   # tool about 0.70 m high
+    mid: [1.582956, -2.0, 1.7, -1.442179, -1.519554, 0.154681]    # tool about 0.60 m high
+  settle_s: 1.0                     # wait added after a move that ends at home
+  step_settle_s: 0.5                # wait added after the other moves
+
+# test_traj.py and test_traj_with_gripper.py: the moves, in order. Each is [pose to reach, seconds].
+sequence:
+  - [home, 3.0]
+  - [high, 2.5]
+  - [mid, 2.5]
+  - [home, 3.0]
+
+# test_traj_with_gripper.py: finger gripper driven through its position controller.
+finger_gripper:
+  command_topic: /onrobot/finger_width_controller/commands
+  width_after_move:                 # width (m) commanded when the move to this pose starts
+    high: 0.03
+    mid: 0.07
+  release_width: 0.150              # width commanded at the end
+  release_wait_s: 2.0
+
+# test_vgc10.py
+vacuum_gripper:
+  onrobot_type: vgc10
+  action_a: /onrobot/gripper_channel_a_controller/gripper_cmd
+  action_b: /onrobot/gripper_channel_b_controller/gripper_cmd
+  action_wait_s: 5.0
+  vacuum_a_percent: 60
+  vacuum_b_percent: 70
+  step_wait_s: 2.0

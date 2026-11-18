@@ -1,29 +1,27 @@
-#pragma once
+// Copyright 2026 Tony Le, Gabriel Novas
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
+
+#ifndef ONROBOT_DRIVER__THREEFG__THREEFG_HARDWARE_INTERFACE_HPP_
+#define ONROBOT_DRIVER__THREEFG__THREEFG_HARDWARE_INTERFACE_HPP_
 
 #include <memory>
-#include <string>
 
-#include "onrobot_driver/common/OnRobotHardwareInterfaceBase.hpp"
-#include "onrobot_driver/threefg/ThreeFG.hpp"
+#include "onrobot_driver/hardware/finger_hardware_interface.hpp"
 
 namespace onrobot_driver
 {
 
-class ThreeFGHardwareInterface : public OnRobotHardwareInterfaceBase
+/// ros2_control plugin of the OnRobot 3FG15.
+class ThreeFGHardwareInterface : public FingerHardwareInterface
 {
-public:
-    ThreeFGHardwareInterface();
-    ~ThreeFGHardwareInterface() override;
-
-    hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo &info) override;
-
 protected:
-    bool instantiateGripper() override;
-    void destroyGripper() override;
-    OnRobotGripperBase *getGripperBase() override;
-
-private:
-    std::unique_ptr<ThreeFG> gripper_;
+  std::unique_ptr<OnRobotGripperBase> createGripper(
+    int device_address, const FingerSettings & settings) override;
 };
 
-} // namespace onrobot_driver
+}  // namespace onrobot_driver
+
+#endif  // ONROBOT_DRIVER__THREEFG__THREEFG_HARDWARE_INTERFACE_HPP_

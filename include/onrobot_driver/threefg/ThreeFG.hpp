@@ -1,112 +1,73 @@
-#pragma once
+// Copyright 2026 Tony Le, Gabriel Novas
+//
+// Use of this source code is governed by an MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT.
 
-#include <memory>
-#include <vector>
-#include <string>
-#include <functional>
+#ifndef ONROBOT_DRIVER__THREEFG__THREEFG_HPP_
+#define ONROBOT_DRIVER__THREEFG__THREEFG_HPP_
 
-#include "../common/OnRobotGripperBase.hpp"
+#include <cstdint>
 
-class ThreeFG : public onrobot_driver::OnRobotGripperBase {
+#include "onrobot_driver/common/OnRobotGripperBase.hpp"
+
+/// Protocol of the OnRobot 3FG15 three-finger gripper. Its "width" is the grip diameter.
+class ThreeFG : public onrobot_driver::OnRobotGripperBase
+{
 public:
-    ThreeFG(const std::string &ip, int port, int device_address);
-    ThreeFG(const std::string &ip, int port, int device_address,
-            std::function<bool()> keep_running, int timeout_ms = TCPConnectionWrapper::DefaultTimeoutMs);
-    ThreeFG(const std::string &device, int device_address);
-    ThreeFG(const std::string &device, int device_address,
-            std::function<bool()> keep_running);
-    ThreeFG(int device_address, std::unique_ptr<IModbusConnection> connection);
-    ~ThreeFG() override;
+  struct GripperStatus
+  {
+    bool busy;
+    bool grip_detected;
+    bool force_grip_detected;
+    bool calibration_ok;
+  };
 
-    // Read commands
-    float getWidth() override;
-    float getForce() override { return getAppliedForce(); }
-    uint16_t getStatusRaw() override;
-   
-    // Write commands
-    void setTargetForce(float force_val) override;
-    void setTargetWidth(float width_val) override;
-    void setTargetSpeed(float speed_val) override;
-    void setCommand(uint16_t command);
-   
-    // Gripper control commands
-    void gripInternal();
-    void gripExternal();
-    void stop() override;
-    void moveGripper(float diameter_val) override;
+  ThreeFG(int device_address, const onrobot_driver::FingerSettings & settings);
+  ~ThreeFG() override;
 
-    // Utility functions
-    float getMinWidth() const override;
-    float getMaxWidth() const override;
-    float getMaxForce() const override;
+  float getWidth() override {return getCurrentDiameter();}
+  float getForce() override {return getAppliedForce();}
+  uint16_t getStatusRaw() override;
+  GripperStatus getDetailedStatus();
 
-    // 3FG15 specific functions
-    float getCurrentDiameter();
-    float getDiameterWithOffset();
-    float getAppliedForce();
-    float getMinDiameter();
-    float getMaxDiameter();
-    float getFingerLength();
-    float getFingerPosition();
-    float getFingertipOffset();
+  void setTargetForce(float force_val) override;
+  void setTargetWidth(float diameter_val) override;
+  void setTargetSpeed(float speed_val) override;
+  void setCommand(uint16_t command);
 
-    // Detailed status
-    struct GripperStatus {
-        bool busy;
-        bool grip_detected;
-        bool force_grip_detected;
-        bool calibration_ok;
-    };
+  void gripInternal();
+  void gripExternal();
+  void stop() override;
+  void moveGripper(float diameter_val) override;
 
-    GripperStatus getDetailedStatus();
+  float getMinWidth() const override {return settings_.min_width;}
+  float getMaxWidth() const override {return settings_.max_width;}
+  float getMaxForce() const override {return settings_.max_force;}
 
-    // Advanced configuration
-    void setGripType(bool internal);
-    void setFingerLength(float mm);
-    void setFingerPosition(float mm);
-    void setFingertipOffset(float mm);
+  float getCurrentDiameter();
+  float getDiameterWithOffset();
+  float getAppliedForce();
+  /// Diameter range reported by the gripper for the mounted fingers (the configured range on a read
+  /// error).
+  float getMinDiameter();
+  float getMaxDiameter();
+  float getFingerLength();    ///< mm
+  float getFingerPosition();
+  float getFingertipOffset();  ///< mm
+
+  void setGripType(bool internal);
+  void setFingerLength(float mm);
+  void setFingerPosition(float position);
+  void setFingertipOffset(float mm);
+
+protected:
+  void applyDefaults() override;
 
 private:
-    // 3FG15 specifications
-    static constexpr float MAX_DIAMETER = 0.150f; // 150 mm maximum operating diameter
-    static constexpr float MIN_DIAMETER = 0.0f;
-    static constexpr float MAX_FORCE = 140.0f;
+  float clampedDiameter(float diameter_val);
 
-    // Default parameters
-    float default_force_;
-    float default_speed_;
-
-    // Modbus registers (from documentation)
-    static constexpr uint16_t REG_TARGET_FORCE = 0;
-    static constexpr uint16_t REG_TARGET_DIAMETER = 1;
-    static constexpr uint16_t REG_TARGET_SPEED = 2;
-    static constexpr uint16_t REG_GRIP_TYPE = 2;
-    static constexpr uint16_t REG_CONTROL = 3;
-    static constexpr uint16_t REG_STATUS = 256;
-    static constexpr uint16_t REG_RAW_DIAMETER = 257;
-    static constexpr uint16_t REG_DIAMETER_WITH_OFFSET = 258;
-    static constexpr uint16_t REG_APPLIED_FORCE = 259;
-    static constexpr uint16_t REG_FINGER_LENGTH = 270;
-    static constexpr uint16_t REG_FINGER_POSITION = 272;
-    static constexpr uint16_t REG_FINGERTIP_OFFSET = 273;
-    static constexpr uint16_t REG_ACTUAL_WIDTH_WITH_OFFSET = 275;
-    static constexpr uint16_t REG_MIN_DIAMETER = 513;
-    static constexpr uint16_t REG_MAX_DIAMETER = 514;
-    static constexpr uint16_t REG_CFG_FINGER_LENGTH = 1025;
-    static constexpr uint16_t REG_CFG_FINGER_POSITION = 1027;
-    static constexpr uint16_t REG_CFG_FINGERTIP_OFFSET = 1028;
-
-    // Control commands
-    static constexpr uint16_t CMD_GRIP = 0x0001;
-    static constexpr uint16_t CMD_MOVE = 0x0002;
-    static constexpr uint16_t CMD_STOP = 0x0004;
-    static constexpr uint16_t CMD_FLEXIBLE_GRIP = 0x0005;
-
-    // Status bits
-    static constexpr uint16_t STATUS_BUSY = 0x0001;
-    static constexpr uint16_t STATUS_GRIP_DETECTED = 0x0002;
-    static constexpr uint16_t STATUS_FORCE_GRIP_DETECTED = 0x0004;
-    static constexpr uint16_t STATUS_CALIBRATION_OK = 0x0008;
-
-    void initParams();
+  onrobot_driver::FingerSettings settings_;
 };
+
+#endif  // ONROBOT_DRIVER__THREEFG__THREEFG_HPP_

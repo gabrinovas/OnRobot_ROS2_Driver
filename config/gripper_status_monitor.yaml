@@ -1,0 +1,23 @@
+# Parameters of the gripper_status_monitor node. The launch file adds the ones that depend on the gripper and
+# on the connection (onrobot_type, gripper_kind, joints, connection_type, ip_address, port, device, timeout_ms,
+# serial_timeout_ms, compute_box_address, use_fake_hardware). The node has no value of its own: it does not
+# start without every one of them.
+/**:
+  ros__parameters:
+    status_topic: gripper_status         # text line with the state of the gripper
+    joint_states_topic: joint_states     # where the state of the gripper joints is read
+    reset_power_service: reset_power     # service that power cycles the tool through the Compute Box
+    queue_depth: 10                      # messages kept by the publisher and the subscription
+    publish_period_s: 1.0                # period of the diagnostics and of the text line
+
+    telemetry_warning_age_s: 1.0         # joint states older than this: warning
+    telemetry_error_age_s: 3.0           # joint states older than this: error
+
+    finger:
+      gripping_effort_n: 5.0             # effort above which a still gripper is holding a part
+      moving_velocity_m_s: 0.005         # speed above which the gripper is moving
+
+    vacuum:
+      active_threshold: 0.05             # vacuum level above which a channel is working
+      drop_from: 0.50                    # a fall from above this...
+      drop_to: 0.20                      # ...to below this between two reports is a lost part

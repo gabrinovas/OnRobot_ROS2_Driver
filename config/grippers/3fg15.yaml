@@ -1,0 +1,33 @@
+# OnRobot 3FG15: how onrobot_driver runs it. What the gripper is (joints, range) is in
+# onrobot_description/config/grippers/3fg15.yaml; both files have the name of the gripper.
+
+hardware:
+  plugin: onrobot_driver::ThreeFGHardwareInterface
+  command_interfaces: [position]
+  state_interfaces: [position, velocity, effort, grip_detected, busy]
+  # Written as <param> into the <ros2_control> block of the URDF. The plugin requires every one of them, and
+  # also min_width and max_width, which the hardware description takes from the range of the joint.
+  parameters:
+    max_force: 140.0                 # N, highest grip force commanded
+    default_force: 70.0              # N, written when the connection opens and used until a controller commands one
+    default_speed: 50.0              # %, written when the connection opens
+    worker_period_ms: 30             # period of the thread that talks to the gripper
+    reconnect_wait_ms: 200           # wait before reopening the connection after a bus error
+    configure_attempts: 5            # attempts to connect and read the first width
+    configure_retry_wait_ms: 1000    # wait between two of those attempts
+    force_resend_threshold: 0.5      # N: a force command this close to the last one sent is not sent again
+    width_resend_threshold: 0.0005   # m: same for the width
+    nominal_read_period_s: 0.02      # period assumed when the controller manager reports none
+    range_warning_period_ms: 2000    # at most one "command out of range" warning in this time
+    fake_smoothing: 0.1              # simulated gripper: share of the remaining travel covered per cycle
+    fake_settled_threshold: 0.001    # m: simulated gripper closer than this to its target has arrived
+    fake_busy_threshold: 0.0005      # m: simulated gripper farther than this from its target is moving
+
+python:                          # protocol class offered to Python by this package
+  module: ThreeFG
+  class: ThreeFG
+
+controllers:
+  file: config/controllers/threefg_controllers.yaml   # relative to this package
+  action: [gripper_action_controller]      # spawned when use_gripper_action_controller is true
+  position: [finger_width_controller]      # spawned when it is false

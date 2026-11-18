@@ -1,0 +1,63 @@
+# Values of the onrobot_driver package. Nothing here is repeated in code: the launch file, the hardware
+# description (urdf/onrobot_ros2_control.xacro) and the Python helpers all read this file.
+
+# Arguments of launch/onrobot_control.launch.py. A value given on the command line overrides its default.
+launch_arguments:
+  onrobot_type:
+    default: 2fg7
+    description: OnRobot gripper to drive (one of the files in config/grippers).
+  connection_type:
+    default: tcp
+    description: 'tcp: through the Compute Box. serial: through the RS485 line of the robot tool connector.'
+    choices: [tcp, serial]
+  ip_address:
+    default: ''
+    description: >-
+      Address of the Compute Box. It belongs to your installation, so it has no default: it is required with
+      connection_type tcp and the real gripper.
+  port:
+    default: 502
+    description: Modbus TCP port of the Compute Box (connection_type tcp).
+  device:
+    default: /tmp/ttyUR
+    description: Serial device, for example /tmp/ttyUR or /dev/ttyUSB0 (connection_type serial).
+  device_address:
+    default: 65
+    description: Modbus address of the gripper (65 with a single gripper).
+  prefix:
+    default: ''
+    description: Prefix of the joint names (for setups with several robots).
+  ns:
+    default: onrobot
+    description: Namespace of the nodes, so that the gripper has a controller manager of its own.
+  use_fake_hardware:
+    default: false
+    description: Simulate the gripper inside the driver instead of connecting to it.
+    choices: ['true', 'false']
+  use_gripper_action_controller:
+    default: true
+    description: 'true: GripperCommand action controllers (MoveIt 2). false: plain position controllers.'
+    choices: ['true', 'false']
+  launch_rsp:
+    default: true
+    description: Start a robot_state_publisher for the gripper.
+    choices: ['true', 'false']
+  launch_rviz:
+    default: true
+    description: Start RViz.
+    choices: ['true', 'false']
+
+# Modbus connection values that are not launch arguments.
+connection:
+  timeout_ms: 2000          # tcp: time to wait for a response (a Compute Box may need more than 800 ms)
+  serial_timeout_ms: 1000   # serial: time to wait for a response
+  connect_retry_ms: 500     # wait between two attempts to open the connection
+
+compute_box_address: 63     # Modbus address of the Compute Box itself (tool power reset)
+
+launch:
+  description_file: urdf/onrobot_driver.urdf.xacro            # relative to this package
+  use_mock_hardware: false   # true: the generic ros2_control mock instead of the driver plugin
+  joint_state_broadcaster: joint_state_broadcaster            # controller spawned for every gripper
+  rviz_config: [onrobot_description, rviz/view_onrobot.rviz]   # package, path relative to it
+  monitor_config: config/gripper_status_monitor.yaml          # relative to this package

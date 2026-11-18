@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="onrobot">
+
+  <!-- One OnRobot gripper fixed to the world, with its ros2_control hardware: what the driver launch file uses
+       to run a gripper on its own. Every argument but prefix and ip_address is required
+       (launch/onrobot_control.launch.py gives them, from config/driver.yaml or from the command line);
+       ip_address, the Compute Box, is only needed by a real gripper over tcp. -->
+  <xacro:arg name="prefix" default=""/>
+  <xacro:arg name="ip_address" default=""/>
+
+  <xacro:include filename="$(find onrobot_description)/urdf/onrobot_macro.xacro"/>
+  <xacro:include filename="$(find onrobot_driver)/urdf/onrobot_ros2_control.xacro"/>
+
+  <xacro:onrobot onrobot_type="$(arg onrobot_type)" prefix="$(arg prefix)"/>
+  <xacro:onrobot_ros2_control
+    onrobot_type="$(arg onrobot_type)"
+    prefix="$(arg prefix)"
+    use_fake_hardware="$(arg use_fake_hardware)"
+    use_mock_hardware="$(arg use_mock_hardware)"
+    connection_type="$(arg connection_type)"
+    device="$(arg device)"
+    ip_address="$(arg ip_address)"
+    port="$(arg port)"
+    device_address="$(arg device_address)"/>
+
+  <link name="world"/>
+  <joint name="$(arg prefix)onrobot_base_link_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="world"/>
+    <child link="$(arg prefix)onrobot_base_link"/>
+  </joint>
+
+</robot>

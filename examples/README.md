@@ -1,37 +1,32 @@
-# Ejemplos de Trayectorias y Control (OnRobot Gripper + UR5e)
+# Examples
 
-Este directorio contiene scripts de ejemplo para probar secuencias de trayectoria y sincronización entre manipuladores (ej. Universal Robots UR5e) y pinzas OnRobot (**2FG7** y **3FG15**).
+Scripts that show how to drive a UR arm and an OnRobot gripper. Their values (topics, poses, times, vacuum
+levels) are in [examples.yaml](examples.yaml): the poses are those of one UR5e cell, so adapt them before
+running the scripts on a real robot.
 
-## Archivos de Ejemplo
+| Script | What it does |
+|---|---|
+| `test_traj.py` | Moves the arm home, up, down and home again with smooth trajectories sent to the scaled joint trajectory controller. |
+| `test_traj_with_gripper.py` | The same moves, commanding a finger gripper (2FG7, 3FG15) at the start of some of them through `/onrobot/finger_width_controller/commands`. |
+| `test_vgc10.py` | Uses the two vacuum channels of the VGC10 one after the other, either directly from Python (`--mode python`) or through the action controllers of the running driver (`--mode ros2`). |
 
-- **`test_traj.py`**:
-  Ejecuta una trayectoria suave en el eje Z (HOME → Subida → Bajada → HOME) para un robot UR5e a través del tópico `/scaled_joint_trajectory_controller/joint_trajectory` utilizando interpolación por splines cúbicos a 125 Hz. No interactúa directamente con la pinza.
+`arm_trajectory.py` holds what the first two share.
 
-- **`test_traj_with_gripper.py`**:
-  Ejecuta una secuencia combinada de manipulador y pinza OnRobot (HOME → Z → GRIP → HOME):
-  1. Mueve el robot UR5e hacia abajo.
-  2. Cierra la pinza enviando un comando al controlador de la pinza (`/onrobot/finger_width_controller/commands`).
-  3. Levanta el robot con el objeto agarrado.
-  4. Vuelve a abrir la pinza y retorna a HOME.
+## Requirements
 
-## Prerrequisitos
+- A running arm driver (real or simulated) with `scaled_joint_trajectory_controller` active.
+- For the gripper scripts, the gripper driver:
+  `ros2 launch onrobot_driver onrobot_control.launch.py onrobot_type:=3fg15 use_gripper_action_controller:=false`
+  (`test_traj_with_gripper.py`), or `onrobot_type:=vgc10` (`test_vgc10.py --mode ros2`).
+- `numpy` and `scipy` for the trajectory scripts.
 
-- Driver o simulación de Universal Robots activa (`ur_robot_driver` o simulación con `ros2_control` / URSim).
-- Controlador `scaled_joint_trajectory_controller` activo para el brazo UR.
-- Driver de la pinza activo (`ros2 launch onrobot_driver onrobot_control.launch.py ...`).
-- Dependencias de Python adicionales:
-  ```bash
-  pip install numpy scipy
-  ```
+## Running
 
-## Modo de Ejecución
+With the workspace sourced, from this folder:
 
-Una vez que el entorno de ROS 2 esté configurado y los nodos levantados:
-
-```bash
-# Sincronización de trayectoria brazo + pinza
-python3 examples/test_traj_with_gripper.py
-
-# Trayectoria de prueba solo de brazo
-python3 examples/test_traj.py
+```sh
+python3 test_traj.py
+python3 test_traj_with_gripper.py
+python3 test_vgc10.py --mode python --ip-address <address of your Compute Box>
+python3 test_vgc10.py --mode ros2
 ```
